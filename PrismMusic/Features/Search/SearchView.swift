@@ -11,7 +11,9 @@ import SwiftUI
 
 struct SearchView: View {
     @Environment(AppState.self) private var app
+    @Binding var pendingArtistDestination: ArtistDestination?
     @State private var query: String = ""
+    @State private var artistDestination: ArtistDestination?
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
@@ -38,6 +40,18 @@ struct SearchView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Album.self) { album in
                 PlaylistDetailView(album: album)
+            }
+            .navigationDestination(for: ArtistDestination.self) { dest in
+                ArtistView(destination: dest)
+            }
+            .navigationDestination(item: $artistDestination) { dest in
+                ArtistView(destination: dest)
+            }
+            .onChange(of: pendingArtistDestination) { _, dest in
+                if let dest {
+                    artistDestination = dest
+                    pendingArtistDestination = nil
+                }
             }
         }
     }
@@ -194,7 +208,16 @@ struct SearchView: View {
                                     }
                                 },
                                 onLikeToggle: { app.library.toggleLike(track) },
-                                liked: app.library.isLiked(track)
+                                liked: app.library.isLiked(track),
+                                onArtistTap: {
+                                    // Navigate to artist — use track's raw ID (strip source prefix)
+                                    let rawId = track.id.components(separatedBy: ":").last ?? track.id
+                                    artistDestination = ArtistDestination(
+                                        id: rawId,
+                                        name: track.artist,
+                                        source: track.source ?? .soundcloud
+                                    )
+                                }
                             )
                         }
                     }

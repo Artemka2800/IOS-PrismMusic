@@ -20,26 +20,31 @@ struct AccountView: View {
                 ImmersiveBackground()
                     .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        header
-                        
-                        if app.settings.isLoggedIn {
-                            profileCard
-                        } else {
+                if app.settings.isLoggedIn {
+                    ProfileView(userId: app.settings.userId)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            header
                             authCard
                         }
+                        .padding(.horizontal, Theme.Layout.screenInset)
+                        .padding(.top, 20)
+                        .padding(.bottom, 140)
                     }
-                    .padding(.horizontal, Theme.Layout.screenInset)
-                    .padding(.top, 20)
-                    .padding(.bottom, 140)
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
             }
             .navigationBarHidden(true)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showCheckoutSheet) {
                 PlategaCheckoutView()
+            }
+            .navigationDestination(for: Album.self) { album in
+                PlaylistDetailView(album: album)
+            }
+            .navigationDestination(for: ArtistDestination.self) { dest in
+                ArtistView(destination: dest)
             }
         }
     }
@@ -56,157 +61,7 @@ struct AccountView: View {
         .padding(.top, 12)
     }
 
-    private var profileCard: some View {
-        VStack(spacing: 20) {
-            HStack(spacing: 16) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 64, weight: .light))
-                    .foregroundStyle(Theme.Palette.textSecondary)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(app.settings.username)
-                            .font(Theme.Typography.title)
-                            .foregroundStyle(.white)
-                        
-                        if app.settings.isPremium {
-                            Text("PREMIUM")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Color.black)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(LinearGradient(colors: [Color(red: 0.95, green: 0.75, blue: 0.2), Color(red: 1.0, green: 0.85, blue: 0.4)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .cornerRadius(4)
-                        } else {
-                            Text("FREE")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.8))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.white.opacity(0.12))
-                                .cornerRadius(4)
-                        }
-                    }
-                    
-                    Text("ID: \(app.settings.userId.prefix(8))...")
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                }
-                Spacer()
-            }
-            
-            
-            if !app.settings.isPremium {
-                Button {
-                    showCheckoutSheet = true
-                } label: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Label("Активировать PrismMusic Premium", systemImage: "sparkles")
-                                .fontWeight(.bold)
-                                .foregroundStyle(.white)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14))
-                                .foregroundStyle(Theme.Palette.textTertiary)
-                        }
-                        
-                        Text("Получи полный доступ к кастомизации интерфейса, иммерсивным эффектам и эксклюзивным темам.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.Palette.textSecondary)
-                            .multilineTextAlignment(.leading)
-                            .lineSpacing(2)
-                    }
-                    .padding(14)
-                    .background(
-                        LinearGradient(
-                            colors: [
-                                Color.emerald.opacity(0.18),
-                                Color.purple.opacity(0.08)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 12)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color.emerald.opacity(0.3),
-                                        Color.purple.opacity(0.15)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 0.5
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                
-                Divider()
-                    .background(Color.white.opacity(0.1))
-            }
-            
-            // Sync status
-            Button {
-                Task {
-                    withAnimation { syncFlash = true }
-                    await app.library.syncWithServer()
-                    try? await Task.sleep(for: .seconds(1.0))
-                    withAnimation { syncFlash = false }
-                }
-            } label: {
-                HStack {
-                    Label(syncFlash ? "Медиатека синхронизирована" : "Синхронизировать медиатеку", 
-                          systemImage: syncFlash ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
-                        .foregroundStyle(syncFlash ? .green : .white)
-                    Spacer()
-                }
-                .padding(12)
-                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
-            }
-            .buttonStyle(.plain)
-            
-            Divider()
-                .background(Color.white.opacity(0.1))
-            
-            Button(role: .destructive) {
-                withAnimation {
-                    app.settings.logout()
-                    usernameDraft = ""
-                    passwordDraft = ""
-                }
-            } label: {
-                HStack {
-                    Spacer()
-                    Label("Выйти из аккаунта", systemImage: "arrow.left.circle")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.red)
-                    Spacer()
-                }
-                .padding(12)
-                .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.red.opacity(0.2), lineWidth: 0.5)
-                )
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .prismGlass(cornerRadius: 16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
-    }
+
 
     private var authCard: some View {
         VStack(spacing: 16) {

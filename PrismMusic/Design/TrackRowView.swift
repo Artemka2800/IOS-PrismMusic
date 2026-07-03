@@ -18,6 +18,7 @@ struct TrackRowView: View {
     var onLikeToggle: (() -> Void)?
     var liked: Bool = false
     var onRemoveTrack: (() -> Void)? = nil
+    var onArtistTap: (() -> Void)? = nil
 
     var body: some View {
         Button(action: onTap) {
@@ -54,8 +55,20 @@ struct TrackRowView: View {
                         .foregroundStyle(isPlaying ? Color.white : Theme.Palette.textPrimary)
                         .lineLimit(1)
                     HStack(spacing: 6) {
-                        Text(track.artist)
-                            .lineLimit(1)
+                        if let onArtistTap {
+                            Button {
+                                onArtistTap()
+                            } label: {
+                                Text(track.artist)
+                                    .lineLimit(1)
+                                    .foregroundStyle(Theme.Palette.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Text(track.artist)
+                                .lineLimit(1)
+                        }
+
                         if let source = track.source {
                             Text("·")
                             if source.hasCustomIcon {
@@ -162,6 +175,15 @@ struct TrackRowView: View {
                     onRemoveTrack()
                 } label: {
                     Label("Удалить из плейлиста", systemImage: "trash")
+                }
+            }
+
+            if let onArtistTap {
+                Divider()
+                Button {
+                    onArtistTap()
+                } label: {
+                    Label("Перейти к артисту", systemImage: "person.crop.circle")
                 }
             }
         }

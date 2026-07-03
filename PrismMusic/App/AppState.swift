@@ -25,6 +25,8 @@ final class AppState {
     let library: LibraryStore
     let recommendations: RecommendationsStore
     let search: SearchStore
+    let profile: ProfileStore
+    let recent: RecentStore
     let networkMonitor: NetworkMonitor
     let downloadStore: DownloadStore
     let sync: CrossDeviceSyncManager
@@ -40,6 +42,8 @@ final class AppState {
         self.library = library
         self.recommendations = RecommendationsStore()
         self.search = SearchStore()
+        self.profile = ProfileStore()
+        self.recent = RecentStore()
         self.audio = audio
         self.networkMonitor = NetworkMonitor.shared
         self.downloadStore = DownloadStore(api: api)
@@ -90,6 +94,37 @@ final class AppState {
             print("[AppState] Find and replace failed: \(error)")
             audio.errorMessage = "Ошибка замены: \(error.localizedDescription)"
             audio.showError = true
+        }
+    }
+
+    // MARK: - Dynamic Color Accent
+
+    var accentColor: SwiftUI.Color {
+        switch settings.accentTheme {
+        case "monochrome":
+            return .white
+        case "emerald":
+            return .emerald
+        case "amethyst":
+            return SwiftUI.Color(red: 0.64, green: 0.44, blue: 0.96)
+        case "azure":
+            return SwiftUI.Color(red: 0.22, green: 0.63, blue: 0.95)
+        case "sunset":
+            return SwiftUI.Color(red: 0.95, green: 0.35, blue: 0.22)
+        case "dynamic":
+            if let source = audio.currentTrack?.source {
+                switch source {
+                case .soundcloud:
+                    return .orange
+                case .yandex:
+                    return .yellow
+                case .spotify:
+                    return .emerald
+                }
+            }
+            return .emerald
+        default:
+            return .emerald
         }
     }
 }

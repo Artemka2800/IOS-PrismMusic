@@ -101,7 +101,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Theme.Palette.textSecondary)
                                 .padding(.horizontal, 4)
                             
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 14) {
                                 HStack {
                                     Label("Immersive фон", systemImage: "sparkles")
                                         .foregroundStyle(app.settings.isPremium ? .white : .white.opacity(0.6))
@@ -115,7 +115,7 @@ struct SettingsView: View {
                                             set: { app.settings.immersiveMode = $0 }
                                         ))
                                         .labelsHidden()
-                                        .tint(.white)
+                                        .tint(app.accentColor)
                                     } else {
                                         HStack(spacing: 6) {
                                             Image(systemName: "lock.fill")
@@ -137,6 +137,46 @@ struct SettingsView: View {
                                     if !app.settings.isPremium {
                                         showCheckoutSheet = true
                                     }
+                                }
+                                
+                                Divider()
+                                    .background(Color.white.opacity(0.1))
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Цветовой акцент")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(.white)
+                                    
+                                    HStack(spacing: 12) {
+                                        ForEach(ThemeOption.allCases) { option in
+                                            Button {
+                                                withAnimation(Theme.Motion.snap) {
+                                                    app.settings.accentTheme = option.rawValue
+                                                }
+                                            } label: {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(option.gradientOrColor)
+                                                        .frame(width: 26, height: 26)
+                                                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                                                    
+                                                    if app.settings.accentTheme == option.rawValue {
+                                                        Circle()
+                                                            .stroke(Color.white, lineWidth: 2)
+                                                            .frame(width: 32, height: 32)
+                                                    }
+                                                }
+                                                .frame(width: 32, height: 32)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.top, 4)
+                                    
+                                    Text(selectedThemeLabel)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Theme.Palette.textTertiary)
+                                        .padding(.top, 2)
                                 }
                             }
                             .padding(14)
@@ -380,6 +420,46 @@ struct SettingsView: View {
         Task {
             try? await Task.sleep(for: .seconds(1.4))
             withAnimation { savedFlash = false }
+        }
+    }
+
+    private var selectedThemeLabel: String {
+        ThemeOption(rawValue: app.settings.accentTheme)?.label ?? "Динамический (обложка)"
+    }
+}
+
+// MARK: - Theme Option Model
+
+enum ThemeOption: String, CaseIterable, Identifiable {
+    case monochrome, emerald, amethyst, azure, sunset, dynamic
+    
+    var id: String { rawValue }
+    
+    var label: String {
+        switch self {
+        case .monochrome: return "Монохром"
+        case .emerald: return "Изумруд"
+        case .amethyst: return "Аметист"
+        case .azure: return "Лазурь"
+        case .sunset: return "Закат"
+        case .dynamic: return "Динамический (обложка)"
+        }
+    }
+    
+    var gradientOrColor: AnyShapeStyle {
+        switch self {
+        case .monochrome:
+            return AnyShapeStyle(Color.gray)
+        case .emerald:
+            return AnyShapeStyle(Color.emerald)
+        case .amethyst:
+            return AnyShapeStyle(Color(red: 0.64, green: 0.44, blue: 0.96))
+        case .azure:
+            return AnyShapeStyle(Color(red: 0.22, green: 0.63, blue: 0.95))
+        case .sunset:
+            return AnyShapeStyle(LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing))
+        case .dynamic:
+            return AnyShapeStyle(LinearGradient(colors: [.cyan, .indigo, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
         }
     }
 }

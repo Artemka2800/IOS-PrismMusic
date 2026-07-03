@@ -10,14 +10,16 @@
 import SwiftUI
 
 struct TabRoot: View {
+    @Environment(AppState.self) private var app
     @State private var selection: Tab = .home
+    @Binding var pendingArtistDestination: ArtistDestination?
 
     var body: some View {
         TabView(selection: $selection) {
             HomeView()
                 .tabItem { Label("Главная", systemImage: "house.fill") }
                 .tag(Tab.home)
-            SearchView()
+            SearchView(pendingArtistDestination: $pendingArtistDestination)
                 .tabItem { Label("Поиск", systemImage: "magnifyingglass") }
                 .tag(Tab.search)
             LibraryView()
@@ -33,7 +35,12 @@ struct TabRoot: View {
         // iOS 26: tab bar automatically gets Liquid Glass material.
         // `.tabBarMinimizeBehavior` lets it shrink on scroll for immersion.
         .safeTabBarMinimizeBehavior()
-        .tint(.white)
+        .tint(app.accentColor)
+        .onChange(of: pendingArtistDestination) { _, dest in
+            if dest != nil {
+                selection = .search
+            }
+        }
     }
 
     enum Tab: Hashable { case home, search, library, account, settings }

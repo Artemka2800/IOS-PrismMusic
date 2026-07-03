@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 enum Theme {
     // MARK: - Colours
@@ -79,5 +80,19 @@ enum Theme {
 
 extension Color {
     static let emerald = Color(red: 0.05, green: 0.78, blue: 0.43)
+}
+
+enum HapticFeedback {
+    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
+    }
+    
+    static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(type)
+    }
 }
 

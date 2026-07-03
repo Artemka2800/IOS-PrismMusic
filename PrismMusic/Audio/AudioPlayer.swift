@@ -83,6 +83,7 @@ final class AudioPlayer {
     private var statusObserver: NSKeyValueObservation?
     private var bufferObserver: NSKeyValueObservation?
     private var endNotificationObserver: NSObjectProtocol?
+    private var lastSavedTrackId: String?
 
     init(api: APIClient, library: LibraryStore) {
         self.api = api
@@ -124,6 +125,9 @@ final class AudioPlayer {
         } else {
             player.play()
             isPlaying = true
+            if let track = currentTrack {
+                saveToHistoryIfNeeded(track: track)
+            }
         }
         updateNowPlaying()
         NotificationCenter.default.post(name: .prismPlayerStateChanged, object: nil)
@@ -342,6 +346,10 @@ final class AudioPlayer {
         }
 
         Task { await fetchLyrics(for: track) }
+
+        if autoplay {
+            saveToHistoryIfNeeded(track: track)
+        }
 
         updateNowPlaying()
         NotificationCenter.default.post(name: .prismPlayerStateChanged, object: nil)
@@ -565,6 +573,24 @@ final class AudioPlayer {
             }
         } catch {
             // Soft-fail — leave lyrics nil; UI shows "no lyrics" placeholder.
+        }
+    }
+
+    // MARK: - Play History Recording
+
+    private func saveToHistoryIfNeeded(track: Track) {
+        guard api.settings.isLoggedIn else { return }
+        let userId = api.settings.userId
+        guard lastSavedTrackId != track.id else { return }
+        
+        lastSavedTrackId = track.id
+        Task {
+            do {
+                try await api.addTrackToHistory(userId: userId, track: track)
+                print("[AudioPlayer] Successfully saved track \(track.title) to history")
+            } catch {
+                print("[AudioPlayer] Failed to save track to history: \(error)")
+            }
         }
     }
 

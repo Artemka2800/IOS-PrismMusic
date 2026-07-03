@@ -12,6 +12,7 @@ struct LibraryView: View {
     enum LibraryTab: String, CaseIterable, Identifiable {
         case favorites = "Избранное"
         case playlists = "Плейлисты"
+        case history = "История"
         var id: String { self.rawValue }
     }
 
@@ -19,6 +20,7 @@ struct LibraryView: View {
     @State private var isShowingCreateDialog = false
     @State private var newPlaylistName = ""
     @State private var newPlaylistDescription = ""
+    @State private var artistDestination: ArtistDestination?
 
     private var tracksToDisplay: [Track] {
         if !app.networkMonitor.isConnected {
@@ -34,27 +36,64 @@ struct LibraryView: View {
                 ImmersiveBackground()
                     .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        headerSection
-                        
-                        pickerSection
-                        
-                        if activeTab == .favorites {
-                            favoritesSection
-                        } else {
+                if activeTab == .playlists {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            headerSection
+                            pickerSection
                             playlistsSection
                         }
+                        .padding(.bottom, 140)
                     }
-                    .padding(.bottom, 140)
+                    .scrollIndicators(.hidden)
+                    .refreshable {
+                        await app.library.syncWithServer()
+                    }
+                } else {
+                    List {
+                        Section {
+                            if activeTab == .favorites {
+                                favoritesListRows
+                            } else {
+                                historyListRows
+                            }
+                        } header: {
+                            VStack(alignment: .leading, spacing: 16) {
+                                headerSection
+                                pickerSection
+                            }
+                            .padding(.bottom, 12)
+                            .listRowInsets(EdgeInsets())
+                            .textCase(nil)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .scrollIndicators(.hidden)
+                    .refreshable {
+                        if activeTab == .history {
+                            if app.settings.isLoggedIn {
+                                await app.recent.fetchHistory(client: app.api, userId: app.settings.userId)
+                            }
+                        } else {
+                            await app.library.syncWithServer()
+                        }
+                    }
                 }
-                .scrollIndicators(.hidden)
-                .refreshable {
-                    await app.library.syncWithServer()
+            }
+            .onChange(of: activeTab) { _, newValue in
+                if newValue == .history && app.settings.isLoggedIn {
+                    Task {
+                        await app.recent.fetchHistory(client: app.api, userId: app.settings.userId)
+                    }
                 }
             }
             .navigationBarHidden(true)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $artistDestination) { dest in
+                ArtistView(destination: dest)
+            }
             .alert("Новый плейлист", isPresented: $isShowingCreateDialog) {
                 TextField("Название", text: $newPlaylistName)
                 TextField("Описание (необязательно)", text: $newPlaylistDescription)
@@ -149,27 +188,45 @@ struct LibraryView: View {
         .padding(.horizontal, Theme.Layout.screenInset)
     }
 
-    private var favoritesSection: some View {
-        Group {
-            if tracksToDisplay.isEmpty {
-                emptyState
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(tracksToDisplay) { track in
-                        TrackRowView(
-                            track: track,
-                            isPlaying: app.audio.currentTrack?.id == track.id && app.audio.isPlaying,
-                            onTap: {
-                                if let idx = tracksToDisplay.firstIndex(of: track) {
-                                    app.audio.play(queue: tracksToDisplay, startAt: idx)
-                                }
-                            },
-                            onLikeToggle: { app.library.toggleLike(track) },
-                            liked: true
+    @ViewBuilder
+    private var favoritesListRows: some View {
+        if tracksToDisplay.isEmpty {
+            emptyState
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        } else {
+            ForEach(tracksToDisplay) { track in
+                TrackRowView(
+                    track: track,
+                    isPlaying: app.audio.currentTrack?.id == track.id && app.audio.isPlaying,
+                    onTap: {
+                        if let idx = tracksToDisplay.firstIndex(of: track) {
+                            app.audio.play(queue: tracksToDisplay, startAt: idx)
+                        }
+                    },
+                    onLikeToggle: { app.library.toggleLike(track) },
+                    liked: true,
+                    onArtistTap: {
+                        let rawId = track.id.components(separatedBy: ":").last ?? track.id
+                        artistDestination = ArtistDestination(
+                            id: rawId,
+                            name: track.artist,
+                            source: track.source ?? .soundcloud
                         )
                     }
+                )
+                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        app.library.toggleLike(track)
+                        HapticFeedback.notification(.success)
+                    } label: {
+                        Label("Удалить", systemImage: "heart.slash.fill")
+                    }
                 }
-                .padding(.horizontal, Theme.Layout.screenInset)
             }
         }
     }
@@ -204,6 +261,100 @@ struct LibraryView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var historyListRows: some View {
+        if !app.settings.isLoggedIn {
+            guestHistoryView
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        } else if app.recent.isLoading {
+            HStack {
+                Spacer()
+                ProgressView()
+                    .tint(.white)
+                Spacer()
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .padding(.top, 40)
+        } else if app.recent.tracks.isEmpty {
+            emptyHistoryState
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        } else {
+            ForEach(app.recent.tracks) { track in
+                let isLiked = app.library.isLiked(track)
+                TrackRowView(
+                    track: track,
+                    isPlaying: app.audio.currentTrack?.id == track.id && app.audio.isPlaying,
+                    onTap: {
+                        app.audio.play(queue: app.recent.tracks, startAt: app.recent.tracks.firstIndex(where: { $0.id == track.id }) ?? 0)
+                    },
+                    onLikeToggle: { app.library.toggleLike(track) },
+                    liked: isLiked,
+                    onArtistTap: {
+                        let rawId = track.id.components(separatedBy: ":").last ?? track.id
+                        artistDestination = ArtistDestination(
+                            id: rawId,
+                            name: track.artist,
+                            source: track.source ?? .soundcloud
+                        )
+                    }
+                )
+                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    Button {
+                        app.library.toggleLike(track)
+                        HapticFeedback.notification(.success)
+                    } label: {
+                        Label(isLiked ? "Дизлайк" : "Лайк", systemImage: isLiked ? "heart.slash.fill" : "heart.fill")
+                    }
+                    .tint(isLiked ? .gray : .red)
+                }
+            }
+        }
+    }
+
+    private var guestHistoryView: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Theme.Palette.textTertiary)
+            Text("Вход не выполнен")
+                .font(Theme.Typography.title)
+                .foregroundStyle(.white)
+            Text("Войдите в аккаунт, чтобы сохранять историю прослушиваний и синхронизировать её.")
+                .font(Theme.Typography.secondary)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 36)
+        .padding(.top, 60)
+    }
+
+    private var emptyHistoryState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "clock.badge.slash")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Theme.Palette.textTertiary)
+            Text("История пуста")
+                .font(Theme.Typography.title)
+                .foregroundStyle(.white)
+            Text("Здесь появятся треки, которые вы воспроизводите в приложении.")
+                .font(Theme.Typography.secondary)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 36)
+        .padding(.top, 60)
+    }
+
 
     private var emptyState: some View {
         VStack(spacing: 14) {

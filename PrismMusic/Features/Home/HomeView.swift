@@ -74,6 +74,9 @@ struct HomeView: View {
             .navigationDestination(for: Album.self) { album in
                 PlaylistDetailView(album: album)
             }
+            .navigationDestination(for: ArtistDestination.self) { dest in
+                ArtistView(destination: dest)
+            }
         }
     }
 

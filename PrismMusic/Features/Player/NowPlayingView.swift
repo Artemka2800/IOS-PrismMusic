@@ -22,8 +22,9 @@ import SwiftUI
 struct NowPlayingView: View {
     @Environment(AppState.self) private var app
     @Binding var isPresented: Bool
+    @Binding var pendingArtistDestination: ArtistDestination?
 
-    enum Panel: Equatable { case none, lyrics, queue }
+    enum Panel: Equatable { case none, lyrics, queue, comments }
     @State private var panel: Panel = .none
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>? = nil
@@ -201,6 +202,25 @@ struct NowPlayingView: View {
                         QueueView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity)
+                    } else if panel == .comments {
+                        if let track = app.audio.currentTrack {
+                            ScrollView {
+                                CommentsView(
+                                    kind: .track,
+                                    targetId: track.id,
+                                    profileOwnerId: nil,
+                                    variant: .overlay
+                                )
+                                .padding(.horizontal, Theme.Layout.screenInset)
+                                .padding(.top, 16)
+                            }
+                            .transition(.opacity)
+                        } else {
+                            Text("Выберите трек")
+                                .font(Theme.Typography.secondary)
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                                .transition(.opacity)
+                        }
                     } else {
                         // Show centered square cover
                         GeometryReader { proxy in
@@ -398,10 +418,23 @@ struct NowPlayingView: View {
                 .foregroundStyle(Theme.Palette.textPrimary)
                 .lineLimit(1)
 
-            Text(app.audio.currentTrack?.artist ?? "Выбери трек из библиотеки")
-                .font(Theme.Typography.secondary)
-                .foregroundStyle(Theme.Palette.textSecondary)
-                .lineLimit(1)
+            Button {
+                guard let track = app.audio.currentTrack else { return }
+                let rawId = track.id.components(separatedBy: ":").last ?? track.id
+                pendingArtistDestination = ArtistDestination(
+                    id: rawId,
+                    name: track.artist,
+                    source: track.source ?? .soundcloud
+                )
+                isPresented = false
+            } label: {
+                Text(app.audio.currentTrack?.artist ?? "Выбери трек из библиотеки")
+                    .font(Theme.Typography.secondary)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                    .lineLimit(1)
+                    .underline(color: .clear) // Reserve space, subtle tap
+            }
+            .buttonStyle(.plain)
         }
         .id(app.audio.currentTrack?.id)
         .transition(coverTransition)
@@ -439,14 +472,21 @@ struct NowPlayingView: View {
             iconButton(
                 "shuffle",
                 tinted: app.audio.isShuffled,
-                action: app.audio.toggleShuffle
+                action: {
+                    app.audio.toggleShuffle()
+                    HapticFeedback.impact(.light)
+                }
             )
 
-            iconButton("backward.fill", size: 28, action: app.audio.previous)
+            iconButton("backward.fill", size: 28, action: {
+                app.audio.previous()
+                HapticFeedback.impact(.medium)
+            })
 
             Button(action: {
                 resetIdleTimer()
                 app.audio.togglePlay()
+                HapticFeedback.impact(.medium)
             }) {
                 Image(systemName: app.audio.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 28, weight: .bold))
@@ -463,12 +503,18 @@ struct NowPlayingView: View {
             .scaleEffect(app.audio.isPlaying ? 1 : 0.94)
             .animation(Theme.Motion.snap, value: app.audio.isPlaying)
 
-            iconButton("forward.fill", size: 28, action: { app.audio.next() })
+            iconButton("forward.fill", size: 28, action: {
+                app.audio.next()
+                HapticFeedback.impact(.medium)
+            })
 
             iconButton(
                 repeatIcon,
                 tinted: app.audio.repeatMode != .off,
-                action: app.audio.toggleRepeat
+                action: {
+                    app.audio.toggleRepeat()
+                    HapticFeedback.impact(.light)
+                }
             )
         }
     }
@@ -506,6 +552,7 @@ struct NowPlayingView: View {
             Button(action: {
                 resetIdleTimer()
                 app.audio.toggleLike()
+                HapticFeedback.impact(.light)
             }) {
                 Image(systemName: liked ? "heart.fill" : "heart")
                     .font(.system(size: 17, weight: .medium))
@@ -542,6 +589,21 @@ struct NowPlayingView: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
                     .foregroundStyle(panel == .queue ? Color.white : Theme.Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            // Comments
+            Button(action: {
+                resetIdleTimer()
+                togglePanel(.comments)
+            }) {
+                Image(systemName: "bubble.left")
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+                    .foregroundStyle(panel == .comments ? Color.white : Theme.Palette.textSecondary)
             }
             .buttonStyle(.plain)
 

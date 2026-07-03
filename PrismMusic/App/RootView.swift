@@ -13,6 +13,7 @@ struct RootView: View {
     @Environment(AppState.self) private var app
     @State private var nowPlayingPresented = false
     @State private var showCrashReport = false
+    @State private var pendingArtistDestination: ArtistDestination?
 
     var body: some View {
         ZStack {
@@ -34,7 +35,7 @@ struct RootView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
-                TabRoot()
+                TabRoot(pendingArtistDestination: $pendingArtistDestination)
             }
             .animation(.spring(), value: app.networkMonitor.isConnected)
 
@@ -52,7 +53,10 @@ struct RootView: View {
             .animation(Theme.Motion.apple, value: app.audio.currentTrack?.id)
         }
         .fullScreenCover(isPresented: $nowPlayingPresented) {
-            NowPlayingView(isPresented: $nowPlayingPresented)
+            NowPlayingView(
+                isPresented: $nowPlayingPresented,
+                pendingArtistDestination: $pendingArtistDestination
+            )
                 .environment(app)
         }
         .alert(

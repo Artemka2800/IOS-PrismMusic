@@ -22,6 +22,7 @@ struct PlaylistDetailView: View {
     @State private var playlistDescription: String = ""
     @State private var playlistCoverURL: URL? = nil
     @State private var isShowingEditSheet = false
+    @State private var artistDestination: ArtistDestination?
 
     init(album: Album) {
         self.album = album
@@ -103,6 +104,9 @@ struct PlaylistDetailView: View {
         .navigationBarHidden(true)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(item: $artistDestination) { dest in
+            ArtistView(destination: dest)
+        }
         .task {
             await loadTracks()
         }
@@ -227,7 +231,15 @@ struct PlaylistDetailView: View {
                                 self.tracks.removeAll { $0.id == track.id }
                             }
                         }
-                    } : nil
+                    } : nil,
+                    onArtistTap: {
+                        let rawId = track.id.components(separatedBy: ":").last ?? track.id
+                        artistDestination = ArtistDestination(
+                            id: rawId,
+                            name: track.artist,
+                            source: track.source ?? .soundcloud
+                        )
+                    }
                 )
             }
         }

@@ -218,4 +218,131 @@ struct SettingsSyncPayload: Codable, Sendable {
     let yandexToken: String?
 }
 
+// MARK: - Artist
 
+/// `GET /api/music/artist?id=...&source=...` — artist page data.
+struct ArtistResponse: Decodable, Sendable {
+    let id: String
+    let name: String
+    let avatarUrl: String?
+    let followers: Int?
+    let city: String?
+    let tracks: [Track]
+    let albums: [ArtistAlbumDTO]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.avatarUrl = try? container.decode(String.self, forKey: .avatarUrl)
+        self.followers = try? container.decode(Int.self, forKey: .followers)
+        self.city = try? container.decode(String.self, forKey: .city)
+        self.tracks = (try? container.decode([Track].self, forKey: .tracks)) ?? []
+        self.albums = (try? container.decode([ArtistAlbumDTO].self, forKey: .albums)) ?? []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, avatarUrl, followers, city, tracks, albums
+    }
+}
+
+/// Backend album/playlist shape inside artist responses.
+struct ArtistAlbumDTO: Decodable, Sendable {
+    let id: String
+    let name: String?
+    let coverUrl: String?
+    let description: String?
+    let source: String?
+
+    var toAlbum: Album {
+        Album(
+            id: id,
+            title: name ?? "Альбом",
+            artist: description ?? source ?? "Неизвестный",
+            year: nil,
+            cover: coverUrl.flatMap { URL(string: $0) },
+            source: TrackSource(rawValue: source ?? "soundcloud") ?? .soundcloud,
+            tracks: nil
+        )
+    }
+}
+
+// MARK: - Profile
+
+struct BadgeProgressItem: Codable, Sendable {
+    let current: Int
+    let target: Int
+}
+
+struct TopArtistItem: Codable, Sendable {
+    let name: String
+    let count: Int
+    let coverUrl: String?
+}
+
+struct RecentHistoryItem: Codable, Sendable {
+    let track: Track
+    let playedAt: String
+}
+
+struct ProfileStats: Codable, Sendable {
+    let id: String
+    let username: String
+    let avatarUrl: String?
+    let bio: String?
+    let bannerUrl: String?
+    let pinnedTrack: Track?
+    let unlockedBadges: [String]
+    let badgeProgress: [String: BadgeProgressItem]?
+    let tracksListened: Int
+    let likedTracks: Int
+    let playlistCount: Int
+    let memberSince: String
+    let role: String?
+    let topArtists: [TopArtistItem]?
+    let recentHistory: [RecentHistoryItem]?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.username = try container.decode(String.self, forKey: .username)
+        self.avatarUrl = try? container.decode(String.self, forKey: .avatarUrl)
+        self.bio = try? container.decode(String.self, forKey: .bio)
+        self.bannerUrl = try? container.decode(String.self, forKey: .bannerUrl)
+        self.pinnedTrack = try? container.decode(Track.self, forKey: .pinnedTrack)
+        self.unlockedBadges = (try? container.decode([String].self, forKey: .unlockedBadges)) ?? []
+        self.badgeProgress = try? container.decode([String: BadgeProgressItem].self, forKey: .badgeProgress)
+        self.tracksListened = (try? container.decode(Int.self, forKey: .tracksListened)) ?? 0
+        self.likedTracks = (try? container.decode(Int.self, forKey: .likedTracks)) ?? 0
+        self.playlistCount = (try? container.decode(Int.self, forKey: .playlistCount)) ?? 0
+        self.memberSince = (try? container.decode(String.self, forKey: .memberSince)) ?? ""
+        self.role = try? container.decode(String.self, forKey: .role)
+        self.topArtists = try? container.decode([TopArtistItem].self, forKey: .topArtists)
+        self.recentHistory = try? container.decode([RecentHistoryItem].self, forKey: .recentHistory)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, username, avatarUrl, bio, bannerUrl, pinnedTrack, unlockedBadges, badgeProgress, tracksListened, likedTracks, playlistCount, memberSince, role, topArtists, recentHistory
+    }
+}
+
+// MARK: - Comments
+
+struct CommentAuthor: Codable, Sendable {
+    let id: String
+    let username: String
+    let avatarUrl: String?
+    let role: String?
+}
+
+struct CommentItem: Codable, Identifiable, Sendable {
+    let id: String
+    let content: String
+    let createdAt: String
+    let author: CommentAuthor
+}
+
+struct CommentsResponse: Codable, Sendable {
+    let comments: [CommentItem]
+    let total: Int
+}

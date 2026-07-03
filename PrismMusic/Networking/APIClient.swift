@@ -405,6 +405,152 @@ final class APIClient {
         )
     }
 
+    /// `GET /api/music/artist?id=...&source=...` — artist profile with tracks and albums.
+    func artist(id: String, source: String) async throws -> ArtistResponse {
+        return try await executeWithFailover(
+            path: "/api/music/artist",
+            queryItems: [
+                URLQueryItem(name: "id", value: id),
+                URLQueryItem(name: "source", value: source),
+            ],
+            as: ArtistResponse.self
+        )
+    }
+
+    /// `GET /api/user/profile/stats?userId=...` — user profile details and stats.
+    func userStats(userId: String) async throws -> ProfileStats {
+        return try await executeWithFailover(
+            path: "/api/user/profile/stats",
+            queryItems: [
+                URLQueryItem(name: "userId", value: userId)
+            ],
+            as: ProfileStats.self
+        )
+    }
+
+    /// `PATCH /api/user/profile` — updates user bio, avatar, banner, or pinned track.
+    func updateProfile(
+        userId: String,
+        avatarUrl: String? = nil,
+        bannerUrl: String? = nil,
+        bio: String? = nil,
+        pinnedTrack: Track? = nil,
+        shouldRemovePinnedTrack: Bool = false
+    ) async throws -> UserResponse {
+        var body: [String: Any] = ["userId": userId]
+        if let avatarUrl { body["avatarUrl"] = avatarUrl }
+        if let bannerUrl { body["bannerUrl"] = bannerUrl }
+        if let bio { body["bio"] = bio }
+        
+        if shouldRemovePinnedTrack {
+            body["pinnedTrack"] = NSNull()
+        } else if let pinnedTrack {
+            let data = try JSONEncoder().encode(pinnedTrack)
+            if let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                body["pinnedTrack"] = dict
+            }
+        }
+        
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        return try await executeWithFailover(
+            path: "/api/user/profile",
+            method: "PATCH",
+            bodyData: bodyData,
+            headers: ["Content-Type": "application/json"],
+            as: UserResponse.self
+        )
+    }
+
+    /// `GET /api/user/history?userId=...` — user's listening history.
+    func recentTracks(userId: String) async throws -> [Track] {
+        return try await executeWithFailover(
+            path: "/api/user/history",
+            queryItems: [
+                URLQueryItem(name: "userId", value: userId)
+            ],
+            as: [Track].self
+        )
+    }
+
+    /// `POST /api/user/history` — adds track to user play history on the server.
+    func addTrackToHistory(userId: String, track: Track) async throws {
+        let idPart = track.id.components(separatedBy: ":").last ?? track.id
+        let sourcePart = track.source?.rawValue ?? "soundcloud"
+        let trackDict: [String: Any] = [
+            "id": idPart,
+            "title": track.title,
+            "artist": track.artist,
+            "coverUrl": track.cover?.absoluteString ?? "",
+            "duration": Int(track.durationSeconds ?? 0),
+            "source": sourcePart
+        ]
+        let body: [String: Any] = [
+            "userId": userId,
+            "track": trackDict
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        _ = try await executeWithFailover(
+            path: "/api/user/history",
+            method: "POST",
+            bodyData: bodyData,
+            headers: ["Content-Type": "application/json"],
+            as: SyncResponse.self
+        )
+    }
+
+    /// `GET /api/comments?profileUserId=...` or `?trackId=...` — fetch comments.
+    func fetchComments(profileUserId: String? = nil, trackId: String? = nil) async throws -> CommentsResponse {
+        var queryItems: [URLQueryItem] = []
+        if let profileUserId {
+            queryItems.append(URLQueryItem(name: "profileUserId", value: profileUserId))
+        }
+        if let trackId {
+            queryItems.append(URLQueryItem(name: "trackId", value: trackId))
+        }
+        return try await executeWithFailover(
+            path: "/api/comments",
+            queryItems: queryItems,
+            as: CommentsResponse.self
+        )
+    }
+
+    /// `POST /api/comments` — posts a comment.
+    func postComment(
+        authorId: String,
+        content: String,
+        profileUserId: String? = nil,
+        trackId: String? = nil
+    ) async throws -> CommentItem {
+        var body: [String: Any] = [
+            "authorId": authorId,
+            "content": content
+        ]
+        if let profileUserId { body["profileUserId"] = profileUserId }
+        if let trackId { body["trackId"] = trackId }
+        
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        return try await executeWithFailover(
+            path: "/api/comments",
+            method: "POST",
+            bodyData: bodyData,
+            headers: ["Content-Type": "application/json"],
+            as: CommentItem.self
+        )
+    }
+
+    /// `DELETE /api/comments?id=...&userId=...` — deletes a comment.
+    func deleteComment(commentId: String, userId: String) async throws {
+        _ = try await executeWithFailover(
+            path: "/api/comments",
+            method: "DELETE",
+            queryItems: [
+                URLQueryItem(name: "id", value: commentId),
+                URLQueryItem(name: "userId", value: userId)
+            ],
+            as: SyncResponse.self
+        )
+    }
+
     // MARK: - Failover & Request plumbing
 
     func rotateHost() {

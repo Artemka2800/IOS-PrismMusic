@@ -26,7 +26,7 @@ struct PrismMusicApp: App {
             RootView()
                 .environment(appState)
                 .preferredColorScheme(.dark)   // PrismMusic is dark-first, like the web app.
-                .tint(.white)                  // global accent
+                .tint(appState.accentColor)    // global accent
                 .task {
                     // Kick off one-time initialisation here: audio session,
                     // remote command handlers, Live Activity recovery.
