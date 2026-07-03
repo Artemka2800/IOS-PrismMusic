@@ -630,6 +630,25 @@ final class APIClient {
         }
         throw lastError
     }
+    /// `GET /api/music/recommend` — fetches recommended/similar tracks for track flow.
+    func recommendTracks(id: String, source: String, title: String, artist: String, userId: String?) async throws -> [Track] {
+        var queryItems = [
+            URLQueryItem(name: "id", value: id),
+            URLQueryItem(name: "source", value: source),
+            URLQueryItem(name: "title", value: title),
+            URLQueryItem(name: "artist", value: artist),
+        ]
+        if let userId, !userId.isEmpty {
+            queryItems.append(URLQueryItem(name: "userId", value: userId))
+        }
+        
+        let response = try await executeWithFailover(
+            path: "/api/music/recommend",
+            queryItems: queryItems,
+            as: RecommendTracksResponse.self
+        )
+        return response.tracks
+    }
 
     private func makeComponents(host: String, path: String, queryItems: [URLQueryItem]) throws -> URLComponents {
         let trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines)

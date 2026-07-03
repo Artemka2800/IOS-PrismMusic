@@ -14,6 +14,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct ProfileView: View {
     @Environment(AppState.self) private var app
@@ -783,36 +784,29 @@ struct EditProfileSheet: View {
     
     @State private var bioDraft: String = ""
     @State private var avatarUrlDraft: String = ""
-    @State private var bannerUrlPreset: String = "sunset"
-    @State private var bannerUrlCustom: String = ""
+    @State private var bannerUrlDraft: String = ""
     
     @State private var isPinSearchPresented = false
     @State private var selectedPinnedTrack: Track?
     @State private var shouldRemovePinnedTrack = false
     @State private var isSaving = false
     
-    private let presetOptions = [
-        ("Закат", "sunset"),
-        ("Сияние", "aurora"),
-        ("Кибер", "cyber"),
-        ("Сланец", "slate")
-    ]
+    // PhotosPicker Items
+    @State private var avatarItem: PhotosPickerItem? = nil
+    @State private var bannerItem: PhotosPickerItem? = nil
     
+    // Drag and Drop hover states
+    @State private var isAvatarHovered = false
+    @State private var isBannerHovered = false
+
     init(stats: ProfileStats?) {
         self.stats = stats
         _bioDraft = State(initialValue: stats?.bio ?? "")
         _avatarUrlDraft = State(initialValue: stats?.avatarUrl ?? "")
+        _bannerUrlDraft = State(initialValue: stats?.bannerUrl ?? "")
         _selectedPinnedTrack = State(initialValue: stats?.pinnedTrack)
-        
-        let initialBanner = stats?.bannerUrl ?? "sunset"
-        if ["sunset", "aurora", "cyber", "slate"].contains(initialBanner) {
-            _bannerUrlPreset = State(initialValue: initialBanner)
-        } else {
-            _bannerUrlPreset = State(initialValue: "custom")
-            _bannerUrlCustom = State(initialValue: initialBanner)
-        }
     }
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -835,29 +829,24 @@ struct EditProfileSheet: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     
-                    Section("АВАТАРКА (URL)") {
+                    Section("АВАТАРКА") {
+                        avatarUploadView
+                        
                         TextField("Ссылка на изображение", text: $avatarUrlDraft)
                             .textInputAutocapitalization(.none)
                             .autocorrectionDisabled()
                             .foregroundStyle(.white)
+                            .font(.system(size: 13))
                     }
                     
                     Section("ОБЛОЖКА ПРОФИЛЯ") {
-                        Picker("Тема оформления", selection: $bannerUrlPreset) {
-                            ForEach(presetOptions, id: \.1) { option in
-                                Text(option.0).tag(option.1)
-                            }
-                            Text("Своя ссылка").tag("custom")
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.vertical, 4)
+                        bannerUploadView
                         
-                        if bannerUrlPreset == "custom" {
-                            TextField("Ссылка на фоновое изображение", text: $bannerUrlCustom)
-                                .textInputAutocapitalization(.none)
-                                .autocorrectionDisabled()
-                                .foregroundStyle(.white)
-                        }
+                        TextField("Ссылка на фоновое изображение", text: $bannerUrlDraft)
+                            .textInputAutocapitalization(.none)
+                            .autocorrectionDisabled()
+                            .foregroundStyle(.white)
+                            .font(.system(size: 13))
                     }
                     
                     Section("ЗАКРЕПЛЕННЫЙ ТРЕК") {
@@ -866,15 +855,36 @@ struct EditProfileSheet: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(.red)
                         } else if let track = selectedPinnedTrack {
-                            HStack {
-                                Text(track.title)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white)
-                                Text("·")
-                                Text(track.artist)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Theme.Palette.textSecondary)
+                            HStack(spacing: 12) {
+                                AsyncImage(url: track.artworkURL) { phase in
+                                    if let image = phase.image {
+                                        image.resizable().scaledToFill()
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.white.opacity(0.04))
+                                    }
+                                }
+                                .frame(width: 46, height: 46)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.1), lineWidth: 0.5))
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(track.title)
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(1)
+                                    Text(track.artist)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Theme.Palette.textSecondary)
+                                        .lineLimit(1)
+                                }
+                                
+                                Spacer()
                             }
+                            .padding(10)
+                            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                            .padding(.vertical, 4)
                         } else {
                             Text("Не выбрано")
                                 .font(.system(size: 13))
@@ -930,19 +940,162 @@ struct EditProfileSheet: View {
                     shouldRemovePinnedTrack = false
                 }
             }
+            .onChange(of: avatarItem) { _, newItem in
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        let base64 = data.base64EncodedString()
+                        avatarUrlDraft = "data:image/jpeg;base64,\(base64)"
+                    }
+                }
+            }
+            .onChange(of: bannerItem) { _, newItem in
+                Task {
+                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                        let base64 = data.base64EncodedString()
+                        bannerUrlDraft = "data:image/jpeg;base64,\(base64)"
+                    }
+                }
+            }
         }
     }
     
+    // Custom drop-zone and picker for Avatar
+    private var avatarUploadView: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                previewImage(urlStr: avatarUrlDraft)
+                    .frame(width: 96, height: 96)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+                
+                if isAvatarHovered {
+                    Circle()
+                        .fill(Color.black.opacity(0.5))
+                        .overlay(
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundStyle(.white)
+                        )
+                }
+            }
+            .frame(width: 96, height: 96)
+            .shadow(radius: 4)
+            .onDrop(of: [.image, .fileURL], isTargeted: $isAvatarHovered) { providers in
+                handleDroppedImage(providers: providers, isAvatar: true)
+            }
+            
+            PhotosPicker(selection: $avatarItem, matching: .images) {
+                Label("Выбрать фото...", systemImage: "photo.on.rectangle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+    
+    // Custom drop-zone and picker for Banner
+    private var bannerUploadView: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                previewImage(urlStr: bannerUrlDraft)
+                    .frame(width: 240, height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.15), lineWidth: 1))
+                
+                if isBannerHovered {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black.opacity(0.5))
+                        .overlay(
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundStyle(.white)
+                        )
+                }
+            }
+            .frame(width: 240, height: 120)
+            .shadow(radius: 4)
+            .onDrop(of: [.image, .fileURL], isTargeted: $isBannerHovered) { providers in
+                handleDroppedImage(providers: providers, isAvatar: false)
+            }
+            
+            PhotosPicker(selection: $bannerItem, matching: .images) {
+                Label("Выбрать обложку...", systemImage: "photo.on.rectangle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+    
+    @ViewBuilder
+    private func previewImage(urlStr: String) -> some View {
+        if urlStr.hasPrefix("data:image"),
+           let data = base64ToData(urlStr),
+           let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+        } else if let url = URL(string: urlStr) {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    Color.white.opacity(0.04)
+                }
+            }
+        } else {
+            Color.white.opacity(0.04)
+        }
+    }
+    
+    private func base64ToData(_ base64Str: String) -> Data? {
+        let parts = base64Str.components(separatedBy: ";base64,")
+        guard parts.count == 2 else { return nil }
+        return Data(base64Encoded: parts[1])
+    }
+    
+    private func handleDroppedImage(providers: [NSItemProvider], isAvatar: Bool) -> Bool {
+        guard let provider = providers.first else { return false }
+        
+        if provider.canLoadObject(ofClass: UIImage.self) {
+            provider.loadObject(ofClass: UIImage.self) { image, error in
+                if let uiImage = image as? UIImage,
+                   let data = uiImage.jpegData(compressionQuality: 0.8) {
+                    let base64 = data.base64EncodedString()
+                    let dataUri = "data:image/jpeg;base64,\(base64)"
+                    Task { @MainActor in
+                        if isAvatar {
+                            avatarUrlDraft = dataUri
+                        } else {
+                            bannerUrlDraft = dataUri
+                        }
+                    }
+                }
+            }
+            return true
+        }
+        return false
+    }
+
     private func saveProfile() {
         isSaving = true
-        let banner = bannerUrlPreset == "custom" ? bannerUrlCustom : bannerUrlPreset
         
         Task {
             let success = await app.profile.updateProfile(
                 client: app.api,
                 userId: app.settings.userId,
                 avatarUrl: avatarUrlDraft.trimmingCharacters(in: .whitespacesAndNewlines),
-                bannerUrl: banner,
+                bannerUrl: bannerUrlDraft.trimmingCharacters(in: .whitespacesAndNewlines),
                 bio: bioDraft.trimmingCharacters(in: .whitespacesAndNewlines),
                 pinnedTrack: shouldRemovePinnedTrack ? nil : selectedPinnedTrack,
                 shouldRemovePinnedTrack: shouldRemovePinnedTrack

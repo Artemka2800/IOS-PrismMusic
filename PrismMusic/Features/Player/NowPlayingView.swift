@@ -335,6 +335,19 @@ struct NowPlayingView: View {
             Spacer()
 
             Menu {
+                if let track = app.audio.currentTrack, app.networkMonitor.isConnected {
+                    Button {
+                        isPresented = false
+                        Task {
+                            await app.audio.startStream(seed: track, client: app.api, userId: app.settings.userId)
+                        }
+                    } label: {
+                        Label("Запустить поток", systemImage: "sparkles")
+                    }
+                    
+                    Divider()
+                }
+
                 if app.networkMonitor.isConnected, let track = app.audio.currentTrack {
                     if track.source == .yandex {
                         Button {

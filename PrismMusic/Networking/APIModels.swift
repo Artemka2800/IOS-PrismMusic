@@ -346,3 +346,10 @@ struct CommentsResponse: Codable, Sendable {
     let comments: [CommentItem]
     let total: Int
 }
+
+// MARK: - Track Recommendations (Flow / Radio)
+
+struct RecommendTracksResponse: Decodable, Sendable {
+    let tracks: [Track]
+}
+

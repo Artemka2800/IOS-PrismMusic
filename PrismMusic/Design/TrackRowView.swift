@@ -113,6 +113,16 @@ struct TrackRowView: View {
         .buttonStyle(TrackRowButtonStyle())
         .contextMenu {
             if app.networkMonitor.isConnected {
+                Button {
+                    Task {
+                        await app.audio.startStream(seed: track, client: app.api, userId: app.settings.userId)
+                    }
+                } label: {
+                    Label("Запустить поток", systemImage: "sparkles")
+                }
+                
+                Divider()
+                
                 if track.source == .yandex {
                     Button {
                         Task {

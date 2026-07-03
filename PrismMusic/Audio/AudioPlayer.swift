@@ -46,6 +46,7 @@ final class AudioPlayer {
 
     var errorMessage: String? = nil
     var showError: Bool = false
+    var isLoadingStream = false
 
     var volume: Float {
         get { storedVolume }
@@ -116,6 +117,59 @@ final class AudioPlayer {
         self.currentIndex = clampedIndex
         self.trackChangeDirection = .none
         load(track: tracks[clampedIndex], autoplay: true)
+    }
+
+    /// Fetches track recommendations (flow) and sets up the player queue.
+    func startStream(seed: Track, client: APIClient, userId: String?) async {
+        isLoadingStream = true
+        do {
+            let recommendations = try await client.recommendTracks(
+                id: seed.id,
+                source: seed.source?.rawValue ?? "soundcloud",
+                title: seed.title,
+                artist: seed.artist,
+                userId: userId
+            )
+            
+            // Deduplicate: seed track is always first, then recommended ones
+            var seen = Set<String>([seed.id])
+            var streamTracks = [seed]
+            for t in recommendations {
+                if !seen.contains(t.id) {
+                    seen.insert(t.id)
+                    streamTracks.append(t)
+                }
+            }
+            
+            if streamTracks.isEmpty {
+                throw APIError.invalidResponse
+            }
+            
+            await MainActor.run {
+                if self.currentTrack != nil && self.isPlaying {
+                    // Smooth transition: don't interrupt active playback
+                    let active = self.currentTrack!
+                    let filtered = streamTracks.filter { $0.id != active.id }
+                    self.queue = [active] + filtered
+                    self.currentIndex = 0
+                } else {
+                    self.queue = streamTracks
+                    self.currentIndex = 0
+                    load(track: streamTracks[0], autoplay: true)
+                }
+                self.isLoadingStream = false
+                
+                // Show confirmation alert
+                self.errorMessage = "Поток запущен: \(seed.title) — \(seed.artist)"
+                self.showError = true
+            }
+        } catch {
+            await MainActor.run {
+                self.isLoadingStream = false
+                self.errorMessage = "Не удалось запустить поток: \(error.localizedDescription)"
+                self.showError = true
+            }
+        }
     }
 
     func togglePlay() {
