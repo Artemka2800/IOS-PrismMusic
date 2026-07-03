@@ -81,7 +81,7 @@ struct ProfileView: View {
                             }
                         }
                         .padding(.horizontal, Theme.Layout.screenInset)
-                        .padding(.top, 16)
+                        .padding(.top, 24)
                         .padding(.bottom, 140)
                     }
                 }
@@ -129,6 +129,8 @@ struct ProfileView: View {
         ZStack(alignment: .bottomLeading) {
             // Background preset or custom banner image
             bannerBackground(stats.bannerUrl)
+                .frame(height: 230)
+                .clipped()
             
             // Mask gradient
             LinearGradient(
@@ -216,7 +218,8 @@ struct ProfileView: View {
             .padding(.horizontal, Theme.Layout.screenInset)
             .padding(.bottom, 16)
         }
-        .frame(height: 200)
+        .frame(height: 230)
+        .clipped()
     }
     
     @ViewBuilder
@@ -361,7 +364,6 @@ struct ProfileView: View {
                                             .overlay(Image(systemName: "music.note"))
                                     }
                                 }
-                                .frame(width: 60, height: 60)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                                 
                                 // Overlay play/pause
@@ -371,6 +373,7 @@ struct ProfileView: View {
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundStyle(.white)
                             }
+                            .frame(width: 60, height: 60)
                         }
                         .buttonStyle(.plain)
                         .shadow(radius: 6)
@@ -475,7 +478,6 @@ struct ProfileView: View {
                                             .fill(Color.white.opacity(0.04))
                                     }
                                 }
-                                .frame(width: 38, height: 38)
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                                 
                                 Color.black.opacity(0.15)
@@ -485,6 +487,7 @@ struct ProfileView: View {
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.white)
                             }
+                            .frame(width: 38, height: 38)
                         }
                         .buttonStyle(.plain)
                         

@@ -32,9 +32,6 @@ struct TabRoot: View {
                 .tabItem { Label("Настройки", systemImage: "gear") }
                 .tag(Tab.settings)
         }
-        // iOS 26: tab bar automatically gets Liquid Glass material.
-        // `.tabBarMinimizeBehavior` lets it shrink on scroll for immersion.
-        .safeTabBarMinimizeBehavior()
         .tint(app.accentColor)
         .onChange(of: pendingArtistDestination) { _, dest in
             if dest != nil {

@@ -224,8 +224,9 @@ struct LibraryView: View {
                         app.library.toggleLike(track)
                         HapticFeedback.notification(.success)
                     } label: {
-                        Label("Удалить", systemImage: "heart.slash.fill")
+                        Label("Удалить", systemImage: "trash.fill")
                     }
+                    .tint(.red)
                 }
             }
         }
