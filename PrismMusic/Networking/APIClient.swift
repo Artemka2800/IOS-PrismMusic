@@ -13,7 +13,7 @@ import Observation
 
 @MainActor
 final class APIClient {
-    private let settings: SettingsStore
+    let settings: SettingsStore
     private let session: URLSession
     private let decoder: JSONDecoder
 

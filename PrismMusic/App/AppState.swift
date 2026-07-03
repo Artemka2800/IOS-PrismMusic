@@ -15,6 +15,7 @@
 
 import Foundation
 import Observation
+import SwiftUI
 
 @Observable
 @MainActor
@@ -119,6 +120,8 @@ final class AppState {
                 case .yandex:
                     return .yellow
                 case .spotify:
+                    return .emerald
+                case .other:
                     return .emerald
                 }
             }

@@ -82,6 +82,7 @@ extension Color {
     static let emerald = Color(red: 0.05, green: 0.78, blue: 0.43)
 }
 
+@MainActor
 enum HapticFeedback {
     static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
         let generator = UIImpactFeedbackGenerator(style: style)
