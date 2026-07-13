@@ -71,7 +71,8 @@ struct SyncedLyricsView: View {
                             }
                             // Trigger an opacity transition when the active
                             // line changes so the inactive ones gently dim.
-                            .animation(Theme.Motion.standard, value: activeIndex)
+                            // Departure (Theme.Motion.standard) is faster than arrival (Theme.Motion.appleLong)
+                            .animation(isActive ? Theme.Motion.appleLong : Theme.Motion.standard, value: activeIndex)
                         }
                     }
                     .padding(.vertical, 80)   // top/bottom breathing room so the centre line can scroll
@@ -249,7 +250,7 @@ private struct LineView: View {
 
     /// Cinematic depth-of-field — far-away inactive lines blur slightly.
     private var blurRadius: Double {
-        isActive ? 0 : 0.4
+        isActive ? 0 : 2.0
     }
 }
 
