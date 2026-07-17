@@ -112,7 +112,8 @@ struct ArtistView: View {
         if let local = isFollowingLocally {
             return local
         }
-        guard let userId = app.settings.userId, !userId.isEmpty else { return false }
+        let userId = app.settings.userId
+        guard !userId.isEmpty else { return false }
         if let followerIds = artistData?.settings?.followerIds {
             return followerIds.contains(userId)
         }
@@ -454,7 +455,8 @@ struct ArtistView: View {
     }
 
     private func toggleFollow() async {
-        guard let userId = app.settings.userId, !userId.isEmpty else { return }
+        let userId = app.settings.userId
+        guard !userId.isEmpty else { return }
         guard let data = artistData else { return }
         
         let currentStatus = isFollowing
