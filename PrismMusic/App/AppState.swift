@@ -35,7 +35,6 @@ final class AppState {
     let sync: CrossDeviceSyncManager
 
     init() {
-        AppState.shared = self
         let settings = SettingsStore()
         let api = APIClient(settings: settings)
         let library = LibraryStore(api: api, settings: settings)
@@ -52,6 +51,8 @@ final class AppState {
         self.networkMonitor = NetworkMonitor.shared
         self.downloadStore = DownloadStore(api: api)
         self.sync = CrossDeviceSyncManager(audio: audio, settings: settings, api: api)
+        
+        AppState.shared = self
     }
 
     func findAndReplace(track: Track, targetSource: TrackSource) async {
