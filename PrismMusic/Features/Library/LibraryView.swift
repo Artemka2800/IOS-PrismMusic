@@ -179,10 +179,12 @@ struct LibraryView: View {
         HStack(spacing: 0) {
             ForEach(LibraryTab.allCases) { tab in
                 Text(tab.rawValue)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                     .foregroundStyle(activeTab == tab ? .black : .white.opacity(0.7))
-                    .padding(.horizontal, 20)
                     .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
                     .background(
                         activeTab == tab ? Color.white : Color.clear,
                         in: Capsule()

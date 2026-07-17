@@ -448,6 +448,31 @@ struct ArtistView: View {
             self.artistData = response
             self.isFollowingLocally = nil
         } catch {
+            print("[ArtistView] Fetch by ID \(destination.id) failed: \(error). Attempting resolution by name: \(destination.name)")
+            if destination.source == .soundcloud || destination.source == .spotify || destination.source == .yandex {
+                do {
+                    let searchRes = try await app.api.search(query: destination.name)
+                    if let matched = searchRes.artists?.first(where: { 
+                        $0.name.localizedCaseInsensitiveCompare(destination.name) == .orderedSame && 
+                        $0.source == destination.source.rawValue 
+                    }) ?? searchRes.artists?.first(where: { 
+                        $0.name.localizedCaseInsensitiveCompare(destination.name) == .orderedSame 
+                    }) ?? searchRes.artists?.first {
+                        print("[ArtistView] Resolved artist name \(destination.name) to ID: \(matched.id) on \(matched.source)")
+                        let response = try await app.api.artist(
+                            id: matched.id,
+                            source: matched.source,
+                            userId: app.settings.userId
+                        )
+                        self.artistData = response
+                        self.isFollowingLocally = nil
+                        isLoading = false
+                        return
+                    }
+                } catch {
+                    print("[ArtistView] Resolution by name failed: \(error)")
+                }
+            }
             self.errorMessage = "Не удалось загрузить информацию об артисте"
             print("[ArtistView] Error: \(error)")
         }

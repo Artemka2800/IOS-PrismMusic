@@ -8,16 +8,25 @@
 
 import Foundation
 
+struct SearchArtistDTO: Decodable, Sendable {
+    let id: String
+    let name: String
+    let avatarUrl: String?
+    let source: String
+}
+
 /// `GET /api/music/search` — returns tracks + playlists + artists.
 /// Backend sends `playlists` key, not `albums`.
 struct SearchResponse: Decodable, Sendable {
     let tracks: [Track]
     let albums: [Album]?
+    let artists: [SearchArtistDTO]?
 
     /// The backend sometimes omits optional sections; default them to empty.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.tracks = (try? container.decode([Track].self, forKey: .tracks)) ?? []
+        self.artists = try? container.decode([SearchArtistDTO].self, forKey: .artists)
 
         // Backend sends playlists, not albums. Map playlists → albums.
         if let playlists = try? container.decode([SearchPlaylistDTO].self, forKey: .playlists) {
@@ -38,7 +47,7 @@ struct SearchResponse: Decodable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case tracks, albums, playlists
+        case tracks, albums, playlists, artists
     }
 }
 
