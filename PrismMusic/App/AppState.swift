@@ -20,6 +20,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class AppState {
+    static private(set) var shared: AppState?
+
     let settings: SettingsStore
     let api: APIClient
     let audio: AudioPlayer
@@ -33,6 +35,7 @@ final class AppState {
     let sync: CrossDeviceSyncManager
 
     init() {
+        AppState.shared = self
         let settings = SettingsStore()
         let api = APIClient(settings: settings)
         let library = LibraryStore(api: api, settings: settings)
