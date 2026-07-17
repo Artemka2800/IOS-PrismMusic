@@ -72,7 +72,7 @@ struct SyncedLyricsView: View {
                             // Trigger an opacity transition when the active
                             // line changes so the inactive ones gently dim.
                             // Departure (Theme.Motion.standard) is faster than arrival (Theme.Motion.appleLong)
-                            .animation(isActive ? Theme.Motion.appleLong : Theme.Motion.standard, value: activeIndex)
+                            .animation((index == activeIndex) ? Theme.Motion.appleLong : Theme.Motion.standard, value: activeIndex)
                         }
                     }
                     .padding(.vertical, 80)   // top/bottom breathing room so the centre line can scroll
