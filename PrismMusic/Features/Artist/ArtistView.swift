@@ -29,6 +29,7 @@ struct ArtistView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showAllTracks = false
+    @State private var isFollowingLocally: Bool? = nil
 
     var body: some View {
         ZStack {
@@ -105,6 +106,17 @@ struct ArtistView: View {
             return String(format: "%.1fK подписчиков", Double(count) / 1_000)
         }
         return "\(count) подписчиков"
+    }
+
+    private var isFollowing: Bool {
+        if let local = isFollowingLocally {
+            return local
+        }
+        guard let userId = app.settings.userId, !userId.isEmpty else { return false }
+        if let followerIds = artistData?.settings?.followerIds {
+            return followerIds.contains(userId)
+        }
+        return false
     }
 
     // MARK: - Hero banner
@@ -201,22 +213,53 @@ struct ArtistView: View {
                 }
             }
 
-            // Play all button
-            if let data = artistData, !data.tracks.isEmpty {
-                Button {
-                    app.audio.play(queue: data.tracks, startAt: 0)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 16, weight: .bold))
-                        Text("Слушать")
-                            .font(.system(size: 15, weight: .semibold))
+            // Buttons row
+            if let data = artistData {
+                HStack(spacing: 12) {
+                    if !data.tracks.isEmpty {
+                        Button {
+                            app.audio.play(queue: data.tracks, startAt: 0)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                Text("Слушать")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 11)
+                        }
+                        .buttonStyle(PlayButtonStyle())
                     }
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 36)
-                    .padding(.vertical, 13)
+                    
+                    if app.settings.isLoggedIn {
+                        Button {
+                            Task {
+                                await toggleFollow()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: isFollowing ? "checkmark" : "plus")
+                                    .font(.system(size: 13, weight: .bold))
+                                Text(isFollowing ? "Отслеживается" : "Отслеживать")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 11)
+                            .background(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .fill(isFollowing ? Color.white.opacity(0.15) : app.accentColor)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(PlayButtonStyle())
                 .padding(.top, 8)
             }
         }
@@ -398,14 +441,47 @@ struct ArtistView: View {
         do {
             let response = try await app.api.artist(
                 id: destination.id,
-                source: destination.source.rawValue
+                source: destination.source.rawValue,
+                userId: app.settings.userId
             )
             self.artistData = response
+            self.isFollowingLocally = nil
         } catch {
             self.errorMessage = "Не удалось загрузить информацию об артисте"
             print("[ArtistView] Error: \(error)")
         }
         isLoading = false
+    }
+
+    private func toggleFollow() async {
+        guard let userId = app.settings.userId, !userId.isEmpty else { return }
+        guard let data = artistData else { return }
+        
+        let currentStatus = isFollowing
+        isFollowingLocally = !currentStatus
+        
+        do {
+            let res = try await app.api.toggleFollowArtist(
+                userId: userId,
+                artistId: data.id,
+                source: destination.source.rawValue,
+                name: data.name,
+                avatarUrl: data.avatarUrl
+            )
+            isFollowingLocally = res.isFollowing
+            
+            // Background reload to update UI state
+            let response = try await app.api.artist(
+                id: destination.id,
+                source: destination.source.rawValue,
+                userId: userId
+            )
+            self.artistData = response
+            self.isFollowingLocally = nil
+        } catch {
+            isFollowingLocally = currentStatus
+            print("[ArtistView] Toggle follow failed: \(error)")
+        }
     }
 }
 

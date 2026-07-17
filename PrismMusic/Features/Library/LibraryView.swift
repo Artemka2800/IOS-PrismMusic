@@ -12,6 +12,7 @@ struct LibraryView: View {
     enum LibraryTab: String, CaseIterable, Identifiable {
         case favorites = "Избранное"
         case playlists = "Плейлисты"
+        case artists = "Исполнители"
         case history = "История"
         var id: String { self.rawValue }
     }
@@ -21,6 +22,8 @@ struct LibraryView: View {
     @State private var newPlaylistName = ""
     @State private var newPlaylistDescription = ""
     @State private var artistDestination: ArtistDestination?
+    @State private var followedArtists: [FollowedArtistDTO] = []
+    @State private var isLoadingArtists = false
 
     private var tracksToDisplay: [Track] {
         if !app.networkMonitor.isConnected {
@@ -54,6 +57,8 @@ struct LibraryView: View {
                         Section {
                             if activeTab == .favorites {
                                 favoritesListRows
+                            } else if activeTab == .artists {
+                                artistsListRows
                             } else {
                                 historyListRows
                             }
@@ -76,6 +81,8 @@ struct LibraryView: View {
                             if app.settings.isLoggedIn {
                                 await app.recent.fetchHistory(client: app.api, userId: app.settings.userId)
                             }
+                        } else if activeTab == .artists {
+                            await fetchFollowedArtists()
                         } else {
                             await app.library.syncWithServer()
                         }
@@ -86,6 +93,10 @@ struct LibraryView: View {
                 if newValue == .history && app.settings.isLoggedIn {
                     Task {
                         await app.recent.fetchHistory(client: app.api, userId: app.settings.userId)
+                    }
+                } else if newValue == .artists {
+                    Task {
+                        await fetchFollowedArtists()
                     }
                 }
             }
@@ -133,8 +144,12 @@ struct LibraryView: View {
                             .font(Theme.Typography.secondary)
                             .foregroundStyle(Theme.Palette.textSecondary)
                     }
+                } else if activeTab == .artists {
+                    Text("\(followedArtists.count) отслеживаемых")
+                        .font(Theme.Typography.secondary)
+                        .foregroundStyle(Theme.Palette.textSecondary)
                 } else {
-                    Text(app.settings.isLoggedIn ? "\(app.library.playlists.count) плейлистов" : "Личные плейлисты")
+                    Text(app.settings.isLoggedIn ? "\(app.library.playlists.count) плейлистов" : "Личные плейлизации")
                         .font(Theme.Typography.secondary)
                         .foregroundStyle(Theme.Palette.textSecondary)
                 }
@@ -406,6 +421,137 @@ struct LibraryView: View {
         }
         .padding(.horizontal, 36)
         .padding(.top, 60)
+    }
+
+    private var guestArtistsView: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Theme.Palette.textTertiary)
+            Text("Вход не выполнен")
+                .font(Theme.Typography.title)
+                .foregroundStyle(.white)
+            Text("Войдите в аккаунт, чтобы отслеживать исполнителей.")
+                .font(Theme.Typography.secondary)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 36)
+        .padding(.top, 60)
+    }
+
+    private var emptyArtistsState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Theme.Palette.textTertiary)
+            Text("Список пуст")
+                .font(Theme.Typography.title)
+                .foregroundStyle(.white)
+            Text("Здесь появятся исполнители, которых вы отслеживаете.")
+                .font(Theme.Typography.secondary)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 36)
+        .padding(.top, 60)
+    }
+
+    @ViewBuilder
+    private var artistsListRows: some View {
+        if !app.settings.isLoggedIn {
+            guestArtistsView
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        } else if isLoadingArtists && followedArtists.isEmpty {
+            HStack {
+                Spacer()
+                ProgressView()
+                    .tint(.white)
+                Spacer()
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .padding(.top, 40)
+        } else if followedArtists.isEmpty {
+            emptyArtistsState
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        } else {
+            ForEach(followedArtists) { artist in
+                Button {
+                    artistDestination = ArtistDestination(
+                        id: artist.id,
+                        name: artist.name,
+                        source: artist.source
+                    )
+                } label: {
+                    HStack(spacing: 14) {
+                        AsyncImage(url: URL(string: artist.avatarUrl ?? "")) { phase in
+                            if let image = phase.image {
+                                image.resizable().scaledToFill()
+                            } else {
+                                Circle().fill(Color.white.opacity(0.08))
+                                    .overlay {
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundStyle(.white.opacity(0.4))
+                                    }
+                            }
+                        }
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(artist.name)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                            
+                            HStack(spacing: 4) {
+                                if artist.source.hasCustomIcon {
+                                    Image(artist.source.rawValue)
+                                        .resizable()
+                                        .renderingMode(.template)
+                                        .scaledToFit()
+                                        .frame(width: 10, height: 10)
+                                }
+                                Text(artist.source.label)
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.25))
+                    }
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        }
+    }
+
+    private func fetchFollowedArtists() async {
+        guard app.settings.isLoggedIn else { return }
+        isLoadingArtists = true
+        do {
+            let fetched = try await app.api.followedArtists(userId: app.settings.userId)
+            self.followedArtists = fetched
+        } catch {
+            print("[LibraryView] Failed to fetch followed artists: \(error)")
+        }
+        isLoadingArtists = false
     }
 }
 

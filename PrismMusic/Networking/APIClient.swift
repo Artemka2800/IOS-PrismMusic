@@ -406,14 +406,38 @@ final class APIClient {
     }
 
     /// `GET /api/music/artist?id=...&source=...` — artist profile with tracks and albums.
-    func artist(id: String, source: String) async throws -> ArtistResponse {
+    func artist(id: String, source: String, userId: String? = nil) async throws -> ArtistResponse {
+        var queryItems = [
+            URLQueryItem(name: "id", value: id),
+            URLQueryItem(name: "source", value: source),
+        ]
+        if let userId = userId {
+            queryItems.append(URLQueryItem(name: "userId", value: userId))
+        }
         return try await executeWithFailover(
             path: "/api/music/artist",
-            queryItems: [
-                URLQueryItem(name: "id", value: id),
-                URLQueryItem(name: "source", value: source),
-            ],
+            queryItems: queryItems,
             as: ArtistResponse.self
+        )
+    }
+
+    /// `POST /api/music/artist/follow` — follow / unfollow an artist.
+    func toggleFollowArtist(userId: String, artistId: String, source: String, name: String, avatarUrl: String?) async throws -> FollowResponse {
+        var body: [String: Any] = [
+            "userId": userId,
+            "artistId": artistId,
+            "source": source,
+            "name": name
+        ]
+        if let avatarUrl = avatarUrl {
+            body["avatarUrl"] = avatarUrl
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        return try await executeWithFailover(
+            path: "/api/music/artist/follow",
+            method: "POST",
+            bodyData: bodyData,
+            as: FollowResponse.self
         )
     }
 
@@ -648,6 +672,15 @@ final class APIClient {
             as: RecommendTracksResponse.self
         )
         return response.tracks
+    }
+
+    /// `GET /api/music/artist/followed?userId=...` — list of followed artists.
+    func followedArtists(userId: String) async throws -> [FollowedArtistDTO] {
+        return try await executeWithFailover(
+            path: "/api/music/artist/followed",
+            queryItems: [URLQueryItem(name: "userId", value: userId)],
+            as: [FollowedArtistDTO].self
+        )
     }
 
     private func makeComponents(host: String, path: String, queryItems: [URLQueryItem]) throws -> URLComponents {

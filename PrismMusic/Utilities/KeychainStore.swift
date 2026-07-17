@@ -15,9 +15,8 @@ enum KeychainStore {
     private static let service = "com.prism.music"
 
     private static var accessGroup: String? {
-        if let prefix = appIdentifierPrefix {
-            return "\(prefix).com.prism.music"
-        }
+        // Return nil to avoid SecItemAdd/SecItemCopyMatching error -34018 on simulators
+        // and environments without explicit shared provisioning profiles.
         return nil
     }
 

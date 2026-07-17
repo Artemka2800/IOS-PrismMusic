@@ -221,6 +221,16 @@ struct SettingsSyncPayload: Codable, Sendable {
 // MARK: - Artist
 
 /// `GET /api/music/artist?id=...&source=...` — artist page data.
+struct ArtistSettingsDTO: Decodable, Sendable {
+    let followerIds: [String]?
+}
+
+struct FollowResponse: Decodable, Sendable {
+    let isFollowing: Bool
+    let followersCount: Int?
+}
+
+/// `GET /api/music/artist?id=...&source=...` — artist page data.
 struct ArtistResponse: Decodable, Sendable {
     let id: String
     let name: String
@@ -229,6 +239,7 @@ struct ArtistResponse: Decodable, Sendable {
     let city: String?
     let tracks: [Track]
     let albums: [ArtistAlbumDTO]
+    let settings: ArtistSettingsDTO?
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -239,10 +250,11 @@ struct ArtistResponse: Decodable, Sendable {
         self.city = try? container.decode(String.self, forKey: .city)
         self.tracks = (try? container.decode([Track].self, forKey: .tracks)) ?? []
         self.albums = (try? container.decode([ArtistAlbumDTO].self, forKey: .albums)) ?? []
+        self.settings = try? container.decode(ArtistSettingsDTO.self, forKey: .settings)
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, avatarUrl, followers, city, tracks, albums
+        case id, name, avatarUrl, followers, city, tracks, albums, settings
     }
 }
 
@@ -351,5 +363,12 @@ struct CommentsResponse: Codable, Sendable {
 
 struct RecommendTracksResponse: Decodable, Sendable {
     let tracks: [Track]
+}
+
+struct FollowedArtistDTO: Decodable, Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let avatarUrl: String?
+    let source: TrackSource
 }
 
