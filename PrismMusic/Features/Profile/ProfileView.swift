@@ -82,10 +82,11 @@ struct ProfileView: View {
                             }
                         }
                         .padding(.horizontal, Theme.Layout.screenInset)
-                        .padding(.top, 24)
+                        .padding(.top, 20)
                         .padding(.bottom, 140)
                     }
                 }
+                .ignoresSafeArea(edges: .top)
                 .scrollIndicators(.hidden)
                 .refreshable {
                     await app.profile.fetchProfile(client: app.api, userId: userId)
@@ -124,155 +125,161 @@ struct ProfileView: View {
         }
     }
 
+    // MARK: - Media URL Resolver
+
+    private func resolveMediaURL(_ pathOrUrl: String?) -> URL? {
+        guard let str = pathOrUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty else { return nil }
+        if str.starts(with: "http://") || str.starts(with: "https://") {
+            return URL(string: str)
+        }
+        let stored = UserDefaults.standard.string(forKey: "prism.backendURL") ?? ""
+        let backend = stored.isEmpty ? "https://prism-music-virid.vercel.app" : stored
+        var cleanBackend = backend.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanBackend.hasSuffix("/") {
+            cleanBackend.removeLast()
+        }
+        let cleanPath = str.starts(with: "/") ? str : "/\(str)"
+        return URL(string: "\(cleanBackend)\(cleanPath)")
+    }
+
     // MARK: - Banner Header
     
     private func profileBanner(_ stats: ProfileStats) -> some View {
         GeometryReader { proxy in
             let minY = proxy.frame(in: .global).minY
             let isStretching = minY > 0
-            let height: CGFloat = 230 + (isStretching ? minY : 0)
+            let bannerH: CGFloat = 260
+            let height: CGFloat = bannerH + (isStretching ? minY : 0)
             let offset: CGFloat = isStretching ? -minY : 0
 
             ZStack(alignment: .bottomLeading) {
                 // Background preset or custom banner image with stretch parallax
                 bannerBackground(stats.bannerUrl)
-                    .frame(height: max(230, height))
+                    .frame(height: max(bannerH, height))
                     .offset(y: offset)
                     .clipped()
                 
                 // Mask gradient
                 LinearGradient(
-                    colors: [.black.opacity(0.3), Theme.Palette.background],
+                    colors: [.black.opacity(0.15), .black.opacity(0.45), Theme.Palette.background],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 
                 // User Meta Info overlay
                 HStack(alignment: .bottom, spacing: 16) {
-                // Avatar image
-                ZStack {
-                    if let urlStr = stats.avatarUrl, let url = URL(string: urlStr) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image {
-                                image.resizable().scaledToFill()
-                            } else {
-                                ProgressView()
-                                    .tint(.white)
+                    // Avatar image
+                    ZStack {
+                        if let url = resolveMediaURL(stats.avatarUrl) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image.resizable().scaledToFill()
+                                } else {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                            }
+                        } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.system(size: 72))
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                        }
+                    }
+                    .frame(width: 76, height: 76)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 2))
+                    .shadow(radius: 8)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text(stats.username)
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                            
+                            if let role = stats.role, role != "user" {
+                                Text(role.uppercased())
+                                    .font(.system(size: 9, weight: .black))
+                                    .foregroundStyle(.black)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(role == "admin" ? Color.red : Color.yellow)
+                                    .cornerRadius(6)
                             }
                         }
-                    } else {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 72))
-                            .foregroundStyle(Theme.Palette.textSecondary)
-                    }
-                }
-                .frame(width: 76, height: 76)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 2))
-                .shadow(radius: 8)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(stats.username)
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
                         
-                        if let role = stats.role, role != "user" {
-                            Text(role.uppercased())
-                                .font(.system(size: 8, weight: .black))
-                                .foregroundStyle(.black)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(role == "admin" ? Color.red : Color.yellow)
-                                .cornerRadius(4)
-                        }
+                        Text("С нами с \(formattedDate(stats.memberSince))")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.Palette.textTertiary)
                     }
                     
-                    Text("С нами с \(formattedDate(stats.memberSince))")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                }
-                
-                Spacer()
-                
-                // Actions: Edit / Share
-                HStack(spacing: 8) {
-                    if stats.id == app.settings.userId {
+                    Spacer()
+                    
+                    // Actions: Edit / Share
+                    HStack(spacing: 8) {
+                        if stats.id == app.settings.userId {
+                            Button {
+                                showEditSheet = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .frame(width: 38, height: 38)
+                                    .background(.white.opacity(0.15), in: Circle())
+                            }
+                        }
+                        
                         Button {
-                            showEditSheet = true
+                            let url = "https://pm.standrise.net/user-profile/\(stats.id)"
+                            UIPasteboard.general.string = url
+                            app.audio.errorMessage = "Ссылка скопирована!"
+                            app.audio.showError = true
                         } label: {
-                            Image(systemName: "pencil")
+                            Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 14, weight: .semibold))
                                 .frame(width: 38, height: 38)
-                                .background(.white.opacity(0.12), in: Circle())
+                                .background(.white.opacity(0.15), in: Circle())
                         }
                     }
-                    
-                    Button {
-                        let url = "https://pm.standrise.net/user-profile/\(stats.id)"
-                        UIPasteboard.general.string = url
-                        app.audio.errorMessage = "Ссылка скопирована!"
-                        app.audio.showError = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(width: 38, height: 38)
-                            .background(.white.opacity(0.12), in: Circle())
-                    }
-                }
-                .foregroundStyle(.white)
-                .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, Theme.Layout.screenInset)
                 .padding(.bottom, 16)
             }
         }
-        .frame(height: 230)
+        .frame(height: 260)
     }
     
     @ViewBuilder
     private func bannerBackground(_ bannerUrl: String?) -> some View {
-        if let bannerUrl, !bannerUrl.isEmpty {
-            if bannerUrl == "sunset" {
-                LinearGradient(colors: [.orange, .red, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-            } else if bannerUrl == "aurora" {
-                LinearGradient(colors: [.green, .blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
-            } else if bannerUrl == "cyber" {
-                LinearGradient(colors: [.purple, .pink, Color(red: 0.1, green: 0.1, blue: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            } else if bannerUrl == "slate" {
-                LinearGradient(colors: [Color(red: 0.15, green: 0.2, blue: 0.25), Color(red: 0.05, green: 0.08, blue: 0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            } else if bannerUrl == "monochrome" {
-                LinearGradient(colors: [Color(white: 0.25), Color(white: 0.08), Color(white: 0.02)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            } else if bannerUrl == "neon" {
-                LinearGradient(colors: [.pink, .purple, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
-            } else if let url = URL(string: bannerUrl) {
-                ZStack {
-                    // Ambient blur backdrop
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .blur(radius: 20)
-                                .opacity(0.6)
-                                .scaleEffect(1.15)
-                        }
-                    }
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        } else {
-                            Color.black
-                        }
+        if let url = resolveMediaURL(bannerUrl) {
+            ZStack {
+                // Ambient blur backdrop
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .blur(radius: 20)
+                            .opacity(0.6)
+                            .scaleEffect(1.15)
                     }
                 }
-            } else {
-                LinearGradient(colors: [.orange, .red, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Color(red: 0.12, green: 0.12, blue: 0.15)
+                    }
+                }
             }
         } else {
-            LinearGradient(colors: [.orange, .red, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [Color(red: 0.16, green: 0.18, blue: 0.25), Color(red: 0.08, green: 0.08, blue: 0.11)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
     
