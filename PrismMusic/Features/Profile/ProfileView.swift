@@ -145,108 +145,100 @@ struct ProfileView: View {
     // MARK: - Banner Header
     
     private func profileBanner(_ stats: ProfileStats) -> some View {
-        GeometryReader { proxy in
-            let minY = proxy.frame(in: .global).minY
-            let isStretching = minY > 0
-            let bannerH: CGFloat = 260
-            let height: CGFloat = bannerH + (isStretching ? minY : 0)
-            let offset: CGFloat = isStretching ? -minY : 0
-
-            ZStack(alignment: .bottomLeading) {
-                // Background preset or custom banner image with stretch parallax
-                bannerBackground(stats.bannerUrl)
-                    .frame(height: max(bannerH, height))
-                    .offset(y: offset)
-                    .clipped()
-                
-                // Mask gradient
-                LinearGradient(
-                    colors: [.black.opacity(0.15), .black.opacity(0.45), Theme.Palette.background],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                
-                // User Meta Info overlay
-                HStack(alignment: .bottom, spacing: 16) {
-                    // Avatar image
-                    ZStack {
-                        if let url = resolveMediaURL(stats.avatarUrl) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image.resizable().scaledToFill()
-                                } else {
-                                    ProgressView()
-                                        .tint(.white)
-                                }
-                            }
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 72))
-                                .foregroundStyle(Theme.Palette.textSecondary)
-                        }
-                    }
-                    .frame(width: 76, height: 76)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 2))
-                    .shadow(radius: 8)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(stats.username)
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                            
-                            if let role = stats.role, role != "user" {
-                                Text(role.uppercased())
-                                    .font(.system(size: 9, weight: .black))
-                                    .foregroundStyle(.black)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(role == "admin" ? Color.red : Color.yellow)
-                                    .cornerRadius(6)
+        ZStack(alignment: .bottomLeading) {
+            // Background preset or custom banner image
+            bannerBackground(stats.bannerUrl)
+                .frame(maxWidth: .infinity)
+                .frame(height: 240)
+                .clipped()
+            
+            // Mask gradient
+            LinearGradient(
+                colors: [.black.opacity(0.05), .black.opacity(0.35), Theme.Palette.background],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            
+            // User Meta Info overlay firmly anchored at the bottom of the banner
+            HStack(alignment: .bottom, spacing: 14) {
+                // Avatar image
+                ZStack {
+                    if let url = resolveMediaURL(stats.avatarUrl) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image.resizable().scaledToFill()
+                            } else {
+                                ProgressView()
+                                    .tint(.white)
                             }
                         }
-                        
-                        Text("С нами с \(formattedDate(stats.memberSince))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.Palette.textTertiary)
+                    } else {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 72))
+                            .foregroundStyle(Theme.Palette.textSecondary)
                     }
-                    
-                    Spacer()
-                    
-                    // Actions: Edit / Share
+                }
+                .frame(width: 74, height: 74)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 2))
+                .shadow(radius: 8)
+                
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        if stats.id == app.settings.userId {
-                            Button {
-                                showEditSheet = true
-                            } label: {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 38, height: 38)
-                                    .background(.white.opacity(0.15), in: Circle())
-                            }
-                        }
+                        Text(stats.username)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
                         
+                        if let role = stats.role, role != "user" {
+                            Text(role.uppercased())
+                                .font(.system(size: 9, weight: .black))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(role == "admin" ? Color.red : Color.yellow)
+                                .cornerRadius(6)
+                        }
+                    }
+                    
+                    Text("С нами с \(formattedDate(stats.memberSince))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.Palette.textTertiary)
+                }
+                
+                Spacer()
+                
+                // Actions: Edit / Share
+                HStack(spacing: 8) {
+                    if stats.id == app.settings.userId {
                         Button {
-                            let url = "https://pm.standrise.net/user-profile/\(stats.id)"
-                            UIPasteboard.general.string = url
-                            app.audio.errorMessage = "Ссылка скопирована!"
-                            app.audio.showError = true
+                            showEditSheet = true
                         } label: {
-                            Image(systemName: "square.and.arrow.up")
+                            Image(systemName: "pencil")
                                 .font(.system(size: 14, weight: .semibold))
                                 .frame(width: 38, height: 38)
                                 .background(.white.opacity(0.15), in: Circle())
                         }
                     }
-                    .foregroundStyle(.white)
-                    .buttonStyle(.plain)
+                    
+                    Button {
+                        let url = "https://pm.standrise.net/user-profile/\(stats.id)"
+                        UIPasteboard.general.string = url
+                        app.audio.errorMessage = "Ссылка скопирована!"
+                        app.audio.showError = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(width: 38, height: 38)
+                            .background(.white.opacity(0.15), in: Circle())
+                    }
                 }
-                .padding(.horizontal, Theme.Layout.screenInset)
-                .padding(.bottom, 16)
+                .foregroundStyle(.white)
+                .buttonStyle(.plain)
             }
+            .padding(.horizontal, Theme.Layout.screenInset)
+            .padding(.bottom, 16)
         }
-        .frame(height: 260)
+        .frame(height: 240)
     }
     
     @ViewBuilder
