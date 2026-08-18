@@ -13,7 +13,7 @@ import SwiftUI
 import CoreMotion
 
 struct AnimatedCoverView: View {
-    @EnvironmentObject private var app: AppState
+    @Environment(AppState.self) private var app
 
     let track: Track?
     let isPlaying: Bool
@@ -121,14 +121,7 @@ struct AnimatedCoverView: View {
         }
     }
 
-    // MARK: - Animations
-
-    private func startBreath() {
-        guard isPlaying, animatedCoverEnabled else { return }
-        withAnimation(.easeInOut(duration: 4.5).repeatForever(autoreverses: true)) {
-            breathScale = 1.03
-        }
-    }
+    // MARK: - Dominant Color
 
     private func refreshDominantColor() async {
         guard let url = track?.artworkURL else { dominantColor = .white; return }

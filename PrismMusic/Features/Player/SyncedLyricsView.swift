@@ -166,6 +166,7 @@ private final class LyricsTicker: ObservableObject {
 
 // MARK: - Equatable single line view
 
+@MainActor
 private struct LineView: View, Equatable {
     let line: LyricsLine
     var isSynced: Bool = true
@@ -173,7 +174,7 @@ private struct LineView: View, Equatable {
     let isPast: Bool
     let progress: Double
 
-    static func == (lhs: LineView, rhs: LineView) -> Bool {
+    nonisolated static func == (lhs: LineView, rhs: LineView) -> Bool {
         lhs.line.id == rhs.line.id &&
         lhs.isSynced == rhs.isSynced &&
         lhs.isActive == rhs.isActive &&
