@@ -53,7 +53,7 @@ final class SettingsStore {
         }
     }
 
-    /// Selected accent theme: monochrome, emerald, amethyst, azure, sunset, dynamic
+    /// Selected accent theme: monochrome, emerald, amethyst, azure, sunset, adaptive
     var accentTheme: String {
         didSet {
             UserDefaults.standard.set(accentTheme, forKey: Keys.accentTheme)
@@ -108,7 +108,8 @@ final class SettingsStore {
         self.yandexToken = KeychainStore.get(Keys.yandexToken) ?? ""
         self.immersiveMode = UserDefaults.standard.object(forKey: Keys.immersiveMode) as? Bool ?? true
         self.animatedCover = UserDefaults.standard.object(forKey: Keys.animatedCover) as? Bool ?? true
-        self.accentTheme = UserDefaults.standard.string(forKey: Keys.accentTheme) ?? "dynamic"
+        let storedAccent = UserDefaults.standard.string(forKey: Keys.accentTheme) ?? "adaptive"
+        self.accentTheme = storedAccent == "dynamic" ? "adaptive" : storedAccent
         self.userId = UserDefaults.standard.string(forKey: Keys.userId) ?? ""
         self.username = UserDefaults.standard.string(forKey: Keys.username) ?? ""
         self.role = UserDefaults.standard.string(forKey: Keys.role) ?? "free"

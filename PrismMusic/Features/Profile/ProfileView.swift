@@ -127,21 +127,28 @@ struct ProfileView: View {
     // MARK: - Banner Header
     
     private func profileBanner(_ stats: ProfileStats) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            // Background preset or custom banner image
-            bannerBackground(stats.bannerUrl)
-                .frame(height: 230)
-                .clipped()
-            
-            // Mask gradient
-            LinearGradient(
-                colors: [.black.opacity(0.3), Theme.Palette.background],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            
-            // User Meta Info overlay
-            HStack(alignment: .bottom, spacing: 16) {
+        GeometryReader { proxy in
+            let minY = proxy.frame(in: .global).minY
+            let isStretching = minY > 0
+            let height: CGFloat = 230 + (isStretching ? minY : 0)
+            let offset: CGFloat = isStretching ? -minY : 0
+
+            ZStack(alignment: .bottomLeading) {
+                // Background preset or custom banner image with stretch parallax
+                bannerBackground(stats.bannerUrl)
+                    .frame(height: max(230, height))
+                    .offset(y: offset)
+                    .clipped()
+                
+                // Mask gradient
+                LinearGradient(
+                    colors: [.black.opacity(0.3), Theme.Palette.background],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                // User Meta Info overlay
+                HStack(alignment: .bottom, spacing: 16) {
                 // Avatar image
                 ZStack {
                     if let urlStr = stats.avatarUrl, let url = URL(string: urlStr) {
@@ -215,12 +222,12 @@ struct ProfileView: View {
                 }
                 .foregroundStyle(.white)
                 .buttonStyle(.plain)
+                }
+                .padding(.horizontal, Theme.Layout.screenInset)
+                .padding(.bottom, 16)
             }
-            .padding(.horizontal, Theme.Layout.screenInset)
-            .padding(.bottom, 16)
         }
         .frame(height: 230)
-        .clipped()
     }
     
     @ViewBuilder
@@ -229,17 +236,36 @@ struct ProfileView: View {
             if bannerUrl == "sunset" {
                 LinearGradient(colors: [.orange, .red, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
             } else if bannerUrl == "aurora" {
-                LinearGradient(colors: [.emerald, .blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
+                LinearGradient(colors: [.green, .blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
             } else if bannerUrl == "cyber" {
                 LinearGradient(colors: [.purple, .pink, Color(red: 0.1, green: 0.1, blue: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
             } else if bannerUrl == "slate" {
                 LinearGradient(colors: [Color(red: 0.15, green: 0.2, blue: 0.25), Color(red: 0.05, green: 0.08, blue: 0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            } else if bannerUrl == "monochrome" {
+                LinearGradient(colors: [Color(white: 0.25), Color(white: 0.08), Color(white: 0.02)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            } else if bannerUrl == "neon" {
+                LinearGradient(colors: [.pink, .purple, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
             } else if let url = URL(string: bannerUrl) {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        Color.black
+                ZStack {
+                    // Ambient blur backdrop
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .blur(radius: 20)
+                                .opacity(0.6)
+                                .scaleEffect(1.15)
+                        }
+                    }
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            Color.black
+                        }
                     }
                 }
             } else {

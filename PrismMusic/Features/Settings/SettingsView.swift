@@ -149,6 +149,7 @@ struct SettingsView: View {
                                     
                                     HStack(spacing: 12) {
                                         ForEach(ThemeOption.allCases) { option in
+                                            let isSelected = app.settings.accentTheme == option.rawValue || (option == .adaptive && app.settings.accentTheme == "dynamic")
                                             Button {
                                                 withAnimation(Theme.Motion.snap) {
                                                     app.settings.accentTheme = option.rawValue
@@ -160,7 +161,7 @@ struct SettingsView: View {
                                                         .frame(width: 26, height: 26)
                                                         .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                                                     
-                                                    if app.settings.accentTheme == option.rawValue {
+                                                    if isSelected {
                                                         Circle()
                                                             .stroke(Color.white, lineWidth: 2)
                                                             .frame(width: 32, height: 32)
@@ -424,14 +425,17 @@ struct SettingsView: View {
     }
 
     private var selectedThemeLabel: String {
-        ThemeOption(rawValue: app.settings.accentTheme)?.label ?? "Динамический (обложка)"
+        if app.settings.accentTheme == "dynamic" {
+            return ThemeOption.adaptive.label
+        }
+        return ThemeOption(rawValue: app.settings.accentTheme)?.label ?? "Адаптивный (обложка)"
     }
 }
 
 // MARK: - Theme Option Model
 
 enum ThemeOption: String, CaseIterable, Identifiable {
-    case monochrome, emerald, amethyst, azure, sunset, dynamic
+    case monochrome, emerald, amethyst, azure, sunset, adaptive
     
     var id: String { rawValue }
     
@@ -442,7 +446,7 @@ enum ThemeOption: String, CaseIterable, Identifiable {
         case .amethyst: return "Аметист"
         case .azure: return "Лазурь"
         case .sunset: return "Закат"
-        case .dynamic: return "Динамический (обложка)"
+        case .adaptive: return "Адаптивный (обложка)"
         }
     }
     
@@ -458,7 +462,7 @@ enum ThemeOption: String, CaseIterable, Identifiable {
             return AnyShapeStyle(Color(red: 0.22, green: 0.63, blue: 0.95))
         case .sunset:
             return AnyShapeStyle(LinearGradient(colors: [.pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing))
-        case .dynamic:
+        case .adaptive:
             return AnyShapeStyle(LinearGradient(colors: [.cyan, .indigo, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
         }
     }

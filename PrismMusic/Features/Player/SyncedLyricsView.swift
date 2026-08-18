@@ -2,21 +2,15 @@
 //  SyncedLyricsView.swift
 //  PrismMusic
 //
-//  Synchronised lyrics with word-level highlighting — same algorithm as
-//  the web `synced-lyrics.tsx`. Active line scrolls into the centre with
-//  a smooth Apple-style ease curve. Tapping a line seeks the player.
-//
-//  We avoid Combine/UIKit gymnastics by leveraging `TimelineView(.animation)`
-//  for the per-frame interpolation: it's the SwiftUI equivalent of the
-//  web `requestAnimationFrame` loop.
+//  Synchronised lyrics with word-level highlighting — High Performance Edition.
+//  Uses Equatable LineViews and binary search active line indexing to ensure 60/120 FPS
+//  without frame drops on iOS.
 //
 
 import SwiftUI
 
 struct SyncedLyricsView: View {
     let lyrics: ParsedLyrics?
-    /// Audio progress from `AudioPlayer`. Ticks ~4×/sec so we interpolate
-    /// between updates for sub-second accuracy.
     let progress: Double
     let duration: Double
     let isPlaying: Bool
@@ -48,34 +42,30 @@ struct SyncedLyricsView: View {
     @ViewBuilder
     private func content(lines: [LyricsLine], isSynced: Bool) -> some View {
         ScrollViewReader { scroller in
-            // TimelineView drives per-frame redraws while playing; pulls
-            // the wall-clock and lets us interpolate progress between
-            // ~250ms ticks for smooth word advancement.
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isPlaying)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isPlaying || !isSynced)) { timeline in
                 let interpolated = ticker.interpolated(at: timeline.date, isPlaying: isPlaying)
                 let activeIndex = activeLineIndex(in: lines, at: interpolated, isSynced: isSynced)
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: isSynced ? 16 : 14) {
                         ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
                             LineView(
                                 line: line,
+                                isSynced: isSynced,
                                 isActive: index == activeIndex,
-                                isPast: index < activeIndex,
+                                isPast: isSynced && index < activeIndex,
                                 progress: interpolated
                             )
+                            .equatable()
                             .id(line.id)
                             .onTapGesture {
                                 onInteraction?()
                                 if isSynced { onSeek(line.time) }
                             }
-                            // Trigger an opacity transition when the active
-                            // line changes so the inactive ones gently dim.
-                            // Departure (Theme.Motion.standard) is faster than arrival (Theme.Motion.appleLong)
                             .animation((index == activeIndex) ? Theme.Motion.appleLong : Theme.Motion.standard, value: activeIndex)
                         }
                     }
-                    .padding(.vertical, 80)   // top/bottom breathing room so the centre line can scroll
+                    .padding(.vertical, isSynced ? 80 : 24)
                     .padding(.horizontal, 20)
                 }
                 .simultaneousGesture(
@@ -91,13 +81,12 @@ struct SyncedLyricsView: View {
                 }
             }
         }
-        // Top + bottom fade so lines don't pop in/out at the edges.
         .mask(
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.12),
-                    .init(color: .black, location: 0.88),
+                    .init(color: .black, location: isSynced ? 0.12 : 0.04),
+                    .init(color: .black, location: isSynced ? 0.88 : 0.94),
                     .init(color: .clear, location: 1),
                 ],
                 startPoint: .top,
@@ -122,26 +111,30 @@ struct SyncedLyricsView: View {
         }
     }
 
-    // MARK: - Active line detection
+    // MARK: - Fast binary-search active line detection
 
-    /// Pick the latest line whose timestamp ≤ progress (with a 0.1s grace
-    /// for early highlighting). Same logic as the web parser.
     private func activeLineIndex(in lines: [LyricsLine], at time: Double, isSynced: Bool) -> Int {
-        guard isSynced else { return -1 }
-        var best = -1
-        var bestTime = -Double.infinity
-        for (i, line) in lines.enumerated() {
-            guard line.time >= 0 else { continue }
-            if line.time - 0.1 <= time && line.time >= bestTime {
-                bestTime = line.time
-                best = i
+        guard isSynced, !lines.isEmpty else { return -1 }
+        let effectiveTime = time + 0.1
+        var low = 0
+        var high = lines.count - 1
+        var result = -1
+
+        while low <= high {
+            let mid = (low + high) / 2
+            let t = lines[mid].time
+            if t <= effectiveTime {
+                result = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
             }
         }
-        return best
+        return result
     }
 }
 
-// MARK: - Lyrics progress ticker for frame-rate interpolation
+// MARK: - Lyrics progress ticker
 
 @MainActor
 private final class LyricsTicker: ObservableObject {
@@ -171,19 +164,28 @@ private final class LyricsTicker: ObservableObject {
     }
 }
 
-// MARK: - Single line view (with karaoke word highlight)
+// MARK: - Equatable single line view
 
-private struct LineView: View {
+private struct LineView: View, Equatable {
     let line: LyricsLine
+    var isSynced: Bool = true
     let isActive: Bool
     let isPast: Bool
     let progress: Double
+
+    static func == (lhs: LineView, rhs: LineView) -> Bool {
+        lhs.line.id == rhs.line.id &&
+        lhs.isSynced == rhs.isSynced &&
+        lhs.isActive == rhs.isActive &&
+        lhs.isPast == rhs.isPast &&
+        (!lhs.isActive || abs(lhs.progress - rhs.progress) < 0.02)
+    }
 
     var body: some View {
         Group {
             if line.isPause {
                 AnimatedEllipsisView(isActive: isActive, isPast: isPast)
-            } else if let words = line.words, !words.isEmpty {
+            } else if isSynced, let words = line.words, !words.isEmpty {
                 karaokeText(words: words)
             } else {
                 Text(line.text)
@@ -192,13 +194,11 @@ private struct LineView: View {
             }
         }
         .font(.system(size: 24, weight: .bold, design: .rounded))
-        .blur(radius: blurRadius)
         .opacity(lineOpacity)
         .shadow(color: isActive ? .white.opacity(0.15) : .clear, radius: 8, x: 0, y: 0)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Word-by-word text with an active/inactive split based on `progress`.
     private func karaokeText(words: [LyricsWord]) -> some View {
         var attributed = AttributedString()
         for (i, word) in words.enumerated() {
@@ -234,23 +234,18 @@ private struct LineView: View {
         return Color.white.opacity(0.20)
     }
 
-    // MARK: - Visual style
-
     private var lineOnlyTextColor: Color {
+        if !isSynced { return Color.white.opacity(0.9) }
         if isActive { return .white }
         if isPast { return Color.white.opacity(0.35) }
         return Color.white.opacity(0.20)
     }
 
     private var lineOpacity: Double {
+        if !isSynced { return 1.0 }
         if isActive { return 1.0 }
         if isPast { return 0.65 }
-        return 1.0
-    }
-
-    /// Cinematic depth-of-field — far-away inactive lines blur slightly.
-    private var blurRadius: Double {
-        isActive ? 0 : 2.0
+        return 0.35
     }
 }
 

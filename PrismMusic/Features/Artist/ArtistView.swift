@@ -123,147 +123,158 @@ struct ArtistView: View {
     // MARK: - Hero banner
 
     private var heroBanner: some View {
-        VStack(spacing: 16) {
-            // Avatar
-            ZStack {
-                // Ambient glow
-                if let url = avatarURL {
-                    AsyncImage(url: url) { phase in
+        GeometryReader { proxy in
+            let minY = proxy.frame(in: .global).minY
+            let isStretching = minY > 0
+            let scale: CGFloat = 1 + (isStretching ? (minY * 0.002) : 0)
+            let offsetY: CGFloat = isStretching ? -minY * 0.4 : 0
+
+            VStack(spacing: 16) {
+                // Avatar
+                ZStack {
+                    // Ambient glow
+                    if let url = avatarURL {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .blur(radius: 28, opaque: false)
+                                    .opacity(0.5)
+                                    .scaleEffect(0.95)
+                                    .offset(y: 8)
+                            }
+                        }
+                        .frame(width: 140, height: 140)
+                    }
+
+                    // Main avatar
+                    AsyncImage(url: avatarURL) { phase in
                         if let image = phase.image {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .blur(radius: 28, opaque: false)
-                                .opacity(0.5)
-                                .scaleEffect(0.95)
-                                .offset(y: 8)
+                            image.resizable().scaledToFill()
+                        } else if phase.error != nil {
+                            fallbackAvatar
+                        } else {
+                            Circle()
+                                .fill(Color.white.opacity(0.04))
+                                .overlay {
+                                    ProgressView()
+                                        .tint(Theme.Palette.textTertiary)
+                                }
                         }
                     }
                     .frame(width: 140, height: 140)
-                }
-
-                // Main avatar
-                AsyncImage(url: avatarURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else if phase.error != nil {
-                        fallbackAvatar
-                    } else {
+                    .clipShape(Circle())
+                    .overlay(
                         Circle()
-                            .fill(Color.white.opacity(0.04))
-                            .overlay {
-                                ProgressView()
-                                    .tint(Theme.Palette.textTertiary)
-                            }
-                    }
-                }
-                .frame(width: 140, height: 140)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                )
-            }
-
-            // Name
-            Text(destination.name)
-                .font(.system(size: 28, weight: .black, design: .rounded))
-                .tracking(-0.3)
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-
-            // Metadata row
-            HStack(spacing: 12) {
-                // Source badge
-                HStack(spacing: 4) {
-                    if destination.source.hasCustomIcon {
-                        Image(destination.source.rawValue)
-                            .resizable()
-                            .renderingMode(.template)
-                            .scaledToFit()
-                            .frame(width: 12, height: 12)
-                    }
-                    Text(destination.source.label)
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundStyle(Theme.Palette.textSecondary)
-
-                if let city = artistData?.city, !city.isEmpty {
-                    Text("·")
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                    HStack(spacing: 3) {
-                        Image(systemName: "mappin")
-                            .font(.system(size: 10))
-                        Text(city)
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(Theme.Palette.textSecondary)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                    )
                 }
 
-                if let followers = followersText {
-                    Text("·")
-                        .foregroundStyle(Theme.Palette.textTertiary)
-                    HStack(spacing: 3) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 10))
-                        Text(followers)
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(Theme.Palette.textSecondary)
-                }
-            }
+                // Name
+                Text(destination.name)
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .tracking(-0.3)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
 
-            // Buttons row
-            if let data = artistData {
+                // Metadata row
                 HStack(spacing: 12) {
-                    if !data.tracks.isEmpty {
-                        Button {
-                            app.audio.play(queue: data.tracks, startAt: 0)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 15, weight: .bold))
-                                Text("Слушать")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 11)
+                    // Source badge
+                    HStack(spacing: 4) {
+                        if destination.source.hasCustomIcon {
+                            Image(destination.source.rawValue)
+                                .resizable()
+                                .renderingMode(.template)
+                                .scaledToFit()
+                                .frame(width: 12, height: 12)
                         }
-                        .buttonStyle(PlayButtonStyle())
+                        Text(destination.source.label)
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    
-                    if app.settings.isLoggedIn {
-                        Button {
-                            Task {
-                                await toggleFollow()
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: isFollowing ? "checkmark" : "plus")
-                                    .font(.system(size: 13, weight: .bold))
-                                Text(isFollowing ? "Отслеживается" : "Отслеживать")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 11)
-                            .background(
-                                RoundedRectangle(cornerRadius: 22)
-                                    .fill(isFollowing ? Color.white.opacity(0.15) : app.accentColor)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 22)
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                            )
+                    .foregroundStyle(Theme.Palette.textSecondary)
+
+                    if let city = artistData?.city, !city.isEmpty {
+                        Text("·")
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        HStack(spacing: 3) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 10))
+                            Text(city)
+                                .font(.system(size: 12, weight: .medium))
                         }
-                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                    }
+
+                    if let followers = followersText {
+                        Text("·")
+                            .foregroundStyle(Theme.Palette.textTertiary)
+                        HStack(spacing: 3) {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 10))
+                            Text(followers)
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(Theme.Palette.textSecondary)
                     }
                 }
-                .padding(.top, 8)
+
+                // Buttons row
+                if let data = artistData {
+                    HStack(spacing: 12) {
+                        if !data.tracks.isEmpty {
+                            Button {
+                                app.audio.play(queue: data.tracks, startAt: 0)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 15, weight: .bold))
+                                    Text("Слушать")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 28)
+                                .padding(.vertical, 11)
+                            }
+                            .buttonStyle(PlayButtonStyle())
+                        }
+                        
+                        if app.settings.isLoggedIn {
+                            Button {
+                                Task {
+                                    await toggleFollow()
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: isFollowing ? "checkmark" : "plus")
+                                        .font(.system(size: 13, weight: .bold))
+                                    Text(isFollowing ? "Отслеживается" : "Отслеживать")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 11)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 22)
+                                        .fill(isFollowing ? Color.white.opacity(0.15) : app.accentColor)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22)
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
             }
+            .scaleEffect(scale, anchor: .top)
+            .offset(y: offsetY)
+            .frame(maxWidth: .infinity)
         }
+        .frame(height: 290)
     }
 
     private var fallbackAvatar: some View {

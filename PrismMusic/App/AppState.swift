@@ -102,7 +102,7 @@ final class AppState {
         }
     }
 
-    // MARK: - Dynamic Color Accent
+    // MARK: - Adaptive Color Accent
 
     var accentColor: SwiftUI.Color {
         switch settings.accentTheme {
@@ -116,7 +116,7 @@ final class AppState {
             return SwiftUI.Color(red: 0.22, green: 0.63, blue: 0.95)
         case "sunset":
             return SwiftUI.Color(red: 0.95, green: 0.35, blue: 0.22)
-        case "dynamic":
+        case "adaptive", "dynamic":
             if let source = audio.currentTrack?.source {
                 switch source {
                 case .soundcloud:
@@ -129,9 +129,9 @@ final class AppState {
                     return .emerald
                 }
             }
-            return .emerald
+            return .white
         default:
-            return .emerald
+            return .white
         }
     }
 }
