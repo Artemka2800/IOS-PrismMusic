@@ -26,6 +26,7 @@ struct NowPlayingView: View {
 
     enum Panel: Equatable { case none, lyrics, queue, comments }
     @State private var panel: Panel = .none
+    @State private var userWantsLyrics = false
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>? = nil
     @State private var sleepMinutes: Int? = nil
@@ -298,6 +299,19 @@ struct NowPlayingView: View {
         }
         .onChange(of: app.audio.isPlaying) { _, _ in
             startSleepTimer()
+        }
+        .onChange(of: app.audio.lyrics) { _, newLyrics in
+            if newLyrics == nil {
+                if panel == .lyrics {
+                    withAnimation(Theme.Motion.appleLong) {
+                        panel = .none
+                    }
+                }
+            } else if userWantsLyrics && panel != .queue && panel != .comments {
+                withAnimation(Theme.Motion.appleLong) {
+                    panel = .lyrics
+                }
+            }
         }
     }
 
@@ -578,23 +592,35 @@ struct NowPlayingView: View {
             Spacer()
 
             // Lyrics (music.mic like website)
+            let hasLyrics = app.audio.lyrics != nil
             Button(action: {
                 resetIdleTimer()
-                togglePanel(.lyrics)
+                if panel == .lyrics {
+                    userWantsLyrics = false
+                    togglePanel(.lyrics)
+                } else if hasLyrics {
+                    userWantsLyrics = true
+                    togglePanel(.lyrics)
+                }
             }) {
                 Image(systemName: "music.mic")
                     .font(.system(size: 17, weight: .medium))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
                     .foregroundStyle(panel == .lyrics ? Color.white : Theme.Palette.textSecondary)
+                    .opacity(hasLyrics ? 1.0 : 0.3)
             }
             .buttonStyle(.plain)
+            .disabled(!hasLyrics)
 
             Spacer()
 
             // Queue
             Button(action: {
                 resetIdleTimer()
+                if panel != .queue {
+                    userWantsLyrics = false
+                }
                 togglePanel(.queue)
             }) {
                 Image(systemName: "list.bullet")
@@ -610,6 +636,9 @@ struct NowPlayingView: View {
             // Comments
             Button(action: {
                 resetIdleTimer()
+                if panel != .comments {
+                    userWantsLyrics = false
+                }
                 togglePanel(.comments)
             }) {
                 Image(systemName: "bubble.left")
